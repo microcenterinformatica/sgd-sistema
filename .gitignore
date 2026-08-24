@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+*.egg-info/
+.pytest_cache/
+
+# configuracao local do Claude Code (nao versionar)
+.claude/
+
+# artefatos do prototipo antigo (nao fazem parte do sistema novo)
+claude.exe
+claude.spec
+claude.py
+claude.docx
+claude.txt
+claude.json
+brasaomococa.jpg
+logo_mococa.jpg
+logo_mococa.jfif
+logo_mococa1.jfif
+logomicrocenter.jpeg
