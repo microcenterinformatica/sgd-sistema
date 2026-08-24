@@ -35,6 +35,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 
@@ -65,13 +66,19 @@ const ITENS_NOTAS_GESTAO = [
 
 function NavItens({ itens }: { itens: typeof ITENS_PRINCIPAIS }) {
   const pathname = usePathname();
+  const { setOpenMobile } = useSidebar();
   return (
     <SidebarMenu>
       {itens.map((item) => {
         const ativo = pathname === item.href || pathname?.startsWith(item.href + "/");
         return (
           <SidebarMenuItem key={item.href}>
-            <SidebarMenuButton render={<Link href={item.href} />} isActive={ativo} tooltip={item.label}>
+            <SidebarMenuButton
+              render={<Link href={item.href} />}
+              isActive={ativo}
+              tooltip={item.label}
+              onClick={() => setOpenMobile(false)}
+            >
               <item.icon />
               <span>{item.label}</span>
             </SidebarMenuButton>
