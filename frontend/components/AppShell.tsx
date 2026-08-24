@@ -15,7 +15,6 @@ import {
   UserCog,
   LogOut,
   ListChecks,
-  FileText,
   CalendarCheck,
   Search,
   BookMarked,
@@ -55,7 +54,6 @@ const ITENS_GESTAO = [
 
 const ITENS_NOTAS = [
   { href: "/notas/atividades", label: "Atividades", icon: ListChecks },
-  { href: "/notas/provas", label: "Provas", icon: FileText },
   { href: "/notas/frequencia", label: "Frequência", icon: CalendarCheck },
   { href: "/notas/consultar-aluno", label: "Consultas", icon: Search },
 ];
