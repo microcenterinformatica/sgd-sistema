@@ -19,6 +19,7 @@ import {
   Search,
   BookMarked,
   Settings2,
+  Tags,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -41,7 +42,7 @@ import { Separator } from "@/components/ui/separator";
 
 const ITENS_PRINCIPAIS = [
   { href: "/painel", label: "Painel", icon: LayoutDashboard },
-  { href: "/alunos", label: "Registro de atividade", icon: ClipboardList },
+  { href: "/alunos", label: "Registro de Ocorrências", icon: ClipboardList },
   { href: "/historico", label: "Histórico", icon: BookOpen },
   { href: "/ranking", label: "Ranking de Mérito", icon: Trophy },
 ];
@@ -54,7 +55,8 @@ const ITENS_GESTAO = [
 ];
 
 const ITENS_NOTAS = [
-  { href: "/notas/atividades", label: "Atividades", icon: ListChecks },
+  { href: "/notas/atividades", label: "Registro de Atividades", icon: ListChecks },
+  { href: "/notas/categorias", label: "Categorias", icon: Tags },
   { href: "/notas/frequencia", label: "Frequência", icon: CalendarCheck },
   { href: "/notas/consultar-aluno", label: "Consultas", icon: Search },
 ];

@@ -36,7 +36,7 @@ function AtividadeDetalheContent() {
   const [dataEdit, setDataEdit] = useState("");
   const [dataEntregaEdit, setDataEntregaEdit] = useState("");
   const [excluindo, setExcluindo] = useState(false);
-  const { categorias, recarregarCategorias } = useCategoriasAtividade(atividade?.disciplina_id ?? "");
+  const { categorias } = useCategoriasAtividade(atividade?.disciplina_id ?? "");
 
   useEffect(() => {
     async function carregar() {
@@ -185,12 +185,9 @@ function AtividadeDetalheContent() {
                 <Input required value={tituloEdit} onChange={(e) => setTituloEdit(e.target.value)} />
               </div>
               <CategoriaAtividadeField
-                disciplinaId={atividade.disciplina_id}
                 categorias={categorias}
                 categoriaId={categoriaIdEdit}
                 onSelecionar={setCategoriaIdEdit}
-                onCategoriaCriada={recarregarCategorias}
-                somenteSelecionar
               />
               <div className="space-y-1">
                 <Label>Data</Label>

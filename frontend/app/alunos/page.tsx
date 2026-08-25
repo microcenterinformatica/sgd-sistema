@@ -102,7 +102,7 @@ function AlunosContent() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-4">
       <PageHeader
-        title="Registro de atividade"
+        title="Registro de Ocorrências"
         subtitle="Encontre o aluno na tabela abaixo e clique em “Registrar” para lançar uma infração ou mérito."
         action={
           <Select value={turmaFiltro} onValueChange={(v) => setTurmaFiltro(v ?? "todas")}>

@@ -33,14 +33,12 @@ function NovaAtividadeForm({
   disciplinaId,
   disciplinaNome,
   categorias,
-  recarregarCategorias,
   onCriada,
 }: {
   turma: string;
   disciplinaId: number;
   disciplinaNome: string;
   categorias: CategoriaAtividade[];
-  recarregarCategorias: () => Promise<void> | void;
   onCriada: () => void;
 }) {
   const [aberto, setAberto] = useState(false);
@@ -96,37 +94,35 @@ function NovaAtividadeForm({
         </Button>
       </CardHeader>
       <CardContent>
-        <form onSubmit={salvar} className="grid sm:grid-cols-6 gap-3 items-end">
-          <CategoriaAtividadeField
-            disciplinaId={disciplinaId}
-            categorias={categorias}
-            categoriaId={categoriaId}
-            onSelecionar={setCategoriaId}
-            onCategoriaCriada={recarregarCategorias}
-            onLimparSelecao={() => setCategoriaId("")}
-            colSpanClassName="sm:col-span-3"
-          />
-          <div className="sm:col-span-3 space-y-1">
-            <Label>Título</Label>
+        <form onSubmit={salvar} className="space-y-4">
+          <div className="space-y-1">
+            <Label className="text-base">Título da atividade</Label>
             <Input
               required
               autoFocus
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
               placeholder="Ex: Lista de exercícios 3"
+              className="text-base h-11"
             />
           </div>
-          <div className="space-y-1">
-            <Label>Data</Label>
-            <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Data de entrega</Label>
-            <Input type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} />
-          </div>
-          <Button type="submit" disabled={salvando || !categoriaId} variant="success" className="sm:col-span-6 w-fit">
+
+          <CategoriaAtividadeField categorias={categorias} categoriaId={categoriaId} onSelecionar={setCategoriaId} />
+
+          <Button type="submit" disabled={salvando || !categoriaId} variant="success" size="lg">
             {salvando ? "Criando..." : "Criar atividade"}
           </Button>
+
+          <div className="grid grid-cols-2 gap-3 max-w-sm pt-2 border-t">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Data</Label>
+              <Input type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Data de entrega</Label>
+              <Input type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} className="h-8 text-sm" />
+            </div>
+          </div>
         </form>
       </CardContent>
     </Card>
@@ -225,7 +221,7 @@ function AtividadesContent() {
   const { turmas, disciplinasDaTurma } = useAtribuicoes();
   const [turma, setTurma] = useState("");
   const [disciplinaId, setDisciplinaId] = useState<number | "">("");
-  const { categorias, recarregarCategorias } = useCategoriasAtividade(disciplinaId);
+  const { categorias } = useCategoriasAtividade(disciplinaId);
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [atividades, setAtividades] = useState<Atividade[] | null>(null);
@@ -285,7 +281,7 @@ function AtividadesContent() {
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-4">
       <PageHeader
-        title="Controle de Atividades"
+        title="Registro de Atividades"
         subtitle="Registre se o aluno fez ou não fez cada atividade."
         action={
           <div className="flex items-end gap-2">
@@ -340,7 +336,6 @@ function AtividadesContent() {
             disciplinaId={disciplinaId}
             disciplinaNome={disciplinaAtual.disciplina_nome}
             categorias={categorias}
-            recarregarCategorias={recarregarCategorias}
             onCriada={carregar}
           />
 
