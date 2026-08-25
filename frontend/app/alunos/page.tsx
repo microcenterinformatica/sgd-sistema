@@ -45,8 +45,9 @@ const columns: ColumnDef<Aluno>[] = [
     ),
   },
   {
-    accessorKey: "matricula",
-    header: ({ column }) => <ColunaOrdenavel label="Matrícula" column={column} />,
+    accessorKey: "numero_chamada",
+    header: ({ column }) => <ColunaOrdenavel label="Nº chamada" column={column} />,
+    cell: ({ row }) => row.original.numero_chamada ?? <span className="text-muted-foreground">—</span>,
   },
   {
     accessorKey: "turma",

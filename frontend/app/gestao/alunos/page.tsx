@@ -138,9 +138,13 @@ function AlunoForm({
   );
 }
 
+const TODAS_TURMAS = "todas";
+const SEM_TURMA = "sem-turma";
+
 function AlunosGestaoContent() {
   const [alunos, setAlunos] = useState<Aluno[] | null>(null);
   const [turmas, setTurmas] = useState<string[]>([]);
+  const [turmaFiltro, setTurmaFiltro] = useState<string>(TODAS_TURMAS);
   const [criando, setCriando] = useState(false);
   const [formCriar, setFormCriar] = useState<FormAluno>(FORM_VAZIO);
   const [salvandoCriar, setSalvandoCriar] = useState(false);
@@ -160,13 +164,20 @@ function AlunosGestaoContent() {
 
   async function abrirNovoAluno() {
     setCriando(true);
+    const turmaInicial = turmaFiltro !== TODAS_TURMAS && turmaFiltro !== SEM_TURMA ? turmaFiltro : "";
     try {
       const sugestao = await api.get<{ matricula: string }>("/alunos/proxima-matricula");
-      setFormCriar({ ...FORM_VAZIO, matricula: sugestao.matricula });
+      setFormCriar({ ...FORM_VAZIO, matricula: sugestao.matricula, turma: turmaInicial });
     } catch {
-      setFormCriar(FORM_VAZIO);
+      setFormCriar({ ...FORM_VAZIO, turma: turmaInicial });
     }
   }
+
+  const alunosExibidos = (alunos ?? []).filter((a) => {
+    if (turmaFiltro === TODAS_TURMAS) return true;
+    if (turmaFiltro === SEM_TURMA) return !a.turma;
+    return a.turma === turmaFiltro;
+  });
 
   useEffect(() => {
     carregar();
@@ -235,7 +246,27 @@ function AlunosGestaoContent() {
     <div className="p-6 max-w-2xl mx-auto space-y-4">
       <PageHeader
         title="Gestão de Alunos"
-        action={!criando && <Button onClick={abrirNovoAluno}>+ Novo aluno</Button>}
+        action={
+          !criando && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={turmaFiltro} onValueChange={(v) => setTurmaFiltro(v ?? TODAS_TURMAS)}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TODAS_TURMAS}>Todas as turmas</SelectItem>
+                  {turmas.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      Turma {t}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={SEM_TURMA}>Sem turma</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={abrirNovoAluno}>+ Novo aluno</Button>
+            </div>
+          )
+        }
       />
 
       {criando && (
@@ -255,7 +286,10 @@ function AlunosGestaoContent() {
 
       <div className="space-y-3">
         {alunos === null && <p className="text-muted-foreground">Carregando...</p>}
-        {alunos?.map((aluno) =>
+        {alunos !== null && alunosExibidos.length === 0 && (
+          <p className="text-muted-foreground">Nenhum aluno encontrado nessa turma.</p>
+        )}
+        {alunosExibidos.map((aluno) =>
           editandoId === aluno.id ? (
             <AlunoForm
               key={aluno.id}
