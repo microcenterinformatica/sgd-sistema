@@ -20,6 +20,7 @@ import {
   BookMarked,
   Settings2,
   Tags,
+  Layers,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -49,6 +50,7 @@ const ITENS_PRINCIPAIS = [
 
 const ITENS_GESTAO = [
   { href: "/gestao/alunos", label: "Alunos", icon: GraduationCap },
+  { href: "/gestao/turmas", label: "Turmas", icon: Layers },
   { href: "/gestao/regras", label: "Regras", icon: Scale },
   { href: "/gestao/punicoes", label: "Condutas", icon: ScrollText },
   { href: "/gestao/professores", label: "Professores", icon: Users },

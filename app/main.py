@@ -16,6 +16,7 @@ from app.api.routes import (
     recuperacao,
     regras,
     registros,
+    turmas,
     usuarios,
 )
 from app.core.config import settings
@@ -39,6 +40,7 @@ app.include_router(professores.router)
 app.include_router(registros.router)
 app.include_router(recuperacao.router)
 app.include_router(disciplinas.router)
+app.include_router(turmas.router)
 app.include_router(configuracao_periodo.router)
 app.include_router(atribuicoes.router)
 app.include_router(categorias.router)

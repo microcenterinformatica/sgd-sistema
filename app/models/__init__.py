@@ -8,6 +8,7 @@ from app.models.registro_disciplinar import RegistroDisciplinar, TipoRegistro
 from app.models.configuracao_recuperacao import ConfiguracaoRecuperacao
 
 from app.models.disciplina import Disciplina
+from app.models.turma import Turma
 from app.models.atribuicao import Atribuicao
 from app.models.atividade import Atividade, TipoAtividade
 from app.models.categoria_atividade import CategoriaAtividade
@@ -28,6 +29,7 @@ __all__ = [
     "TipoRegistro",
     "ConfiguracaoRecuperacao",
     "Disciplina",
+    "Turma",
     "Atribuicao",
     "Atividade",
     "TipoAtividade",

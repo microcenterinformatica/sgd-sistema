@@ -10,6 +10,7 @@ from app.models.atividade import Atividade
 from app.models.categoria_atividade import CategoriaAtividade
 from app.models.disciplina import Disciplina
 from app.models.lancamento import Lancamento
+from app.models.turma import Turma
 from app.models.atividade import TipoAtividade
 from app.schemas.atividade import AtividadeCreate, AtividadeRead, AtividadeResumoItem, AtividadeUpdate
 from app.schemas.lancamento import LancamentoAlunoRead, LancamentoLoteCreate, LancamentoRead
@@ -27,10 +28,9 @@ def _listar_alunos_por_turma(session: SessionDep, escola_id: int, turma: str | N
 
 def _listar_turmas(session: SessionDep, escola_id: int) -> list[str]:
     return session.exec(
-        select(Aluno.turma)
-        .where(Aluno.escola_id == escola_id, Aluno.turma.is_not(None))
-        .distinct()
-        .order_by(Aluno.turma)
+        select(Turma.nome)
+        .where(Turma.escola_id == escola_id, Turma.ativo == True)  # noqa: E712
+        .order_by(Turma.nome)
     ).all()
 
 

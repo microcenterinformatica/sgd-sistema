@@ -101,6 +101,13 @@ export interface Disciplina {
   ativo: boolean;
 }
 
+export interface Turma {
+  id: number;
+  escola_id: number;
+  nome: string;
+  ativo: boolean;
+}
+
 export interface ProfessorResumo {
   id: number;
   nome: string;

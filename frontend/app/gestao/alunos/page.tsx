@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface FormAluno {
   nome: string;
@@ -49,6 +50,7 @@ function AlunoForm({
   onCancelar,
   salvando,
   modoEdicao,
+  turmas,
 }: {
   valores: FormAluno;
   onChange: (v: FormAluno) => void;
@@ -56,6 +58,7 @@ function AlunoForm({
   onCancelar?: () => void;
   salvando: boolean;
   modoEdicao: boolean;
+  turmas: string[];
 }) {
   return (
     <Card>
@@ -71,9 +74,26 @@ function AlunoForm({
               <Label title="Preenchida automaticamente com a próxima disponível; pode alterar se precisar.">Matrícula</Label>
               <Input required value={valores.matricula} onChange={(e) => onChange({ ...valores, matricula: e.target.value })} />
             </div>
-            <div className="w-24 space-y-1">
+            <div className="w-32 space-y-1">
               <Label>Turma</Label>
-              <Input value={valores.turma} onChange={(e) => onChange({ ...valores, turma: e.target.value })} placeholder="9B" />
+              <Select
+                value={valores.turma || undefined}
+                onValueChange={(v) => onChange({ ...valores, turma: v ?? "" })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>{(v: string) => v || "Selecione..."}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {turmas.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {turmas.length === 0 && (
+                <p className="text-xs text-muted-foreground">Nenhuma turma cadastrada em Gestão → Turmas.</p>
+              )}
             </div>
             <div className="w-28 space-y-1">
               <Label title="Número do aluno na chamada/diário de classe. Pode repetir entre turmas diferentes.">
@@ -120,6 +140,7 @@ function AlunoForm({
 
 function AlunosGestaoContent() {
   const [alunos, setAlunos] = useState<Aluno[] | null>(null);
+  const [turmas, setTurmas] = useState<string[]>([]);
   const [criando, setCriando] = useState(false);
   const [formCriar, setFormCriar] = useState<FormAluno>(FORM_VAZIO);
   const [salvandoCriar, setSalvandoCriar] = useState(false);
@@ -131,6 +152,10 @@ function AlunosGestaoContent() {
   async function carregar() {
     const dados = await api.get<Aluno[]>("/alunos");
     setAlunos(dados.sort((a, b) => a.nome.localeCompare(b.nome)));
+  }
+
+  async function carregarTurmas() {
+    setTurmas(await api.get<string[]>("/turmas"));
   }
 
   async function abrirNovoAluno() {
@@ -145,6 +170,7 @@ function AlunosGestaoContent() {
 
   useEffect(() => {
     carregar();
+    carregarTurmas();
   }, []);
 
   function paraPayload(v: FormAluno) {
@@ -223,6 +249,7 @@ function AlunosGestaoContent() {
           }}
           salvando={salvandoCriar}
           modoEdicao={false}
+          turmas={turmas}
         />
       )}
 
@@ -238,6 +265,7 @@ function AlunosGestaoContent() {
               onCancelar={() => setEditandoId(null)}
               salvando={salvandoEditar}
               modoEdicao
+              turmas={turmas}
             />
           ) : (
             <Card key={aluno.id}>
