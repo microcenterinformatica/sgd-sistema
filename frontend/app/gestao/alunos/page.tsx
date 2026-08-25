@@ -196,9 +196,13 @@ function AlunosGestaoContent() {
   }
 
   async function excluir(id: number) {
-    await api.delete(`/alunos/${id}`);
-    carregar();
-    toast.success("Aluno excluído");
+    try {
+      await api.delete(`/alunos/${id}`);
+      carregar();
+      toast.success("Aluno excluído");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao excluir aluno");
+    }
   }
 
   return (

@@ -1,16 +1,16 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
 
-from app.api.deps import CurrentUserDep, SessionDep
+from app.api.deps import CurrentUserDep, SessionDep, require_roles
 from app.models.aluno import Aluno
 from app.models.escola import Escola
 from app.models.professor import Professor
 from app.models.regra_infracao import RegraInfracao
 from app.models.registro_disciplinar import RegistroDisciplinar, TipoRegistro
-from app.models.usuario import Usuario
+from app.models.usuario import PapelUsuario, Usuario
 from app.schemas.registro_disciplinar import (
     RegistroDisciplinarRead,
     RegistroDisciplinarResponse,
@@ -22,6 +22,8 @@ from app.services.pontuacao import aplicar_infracao, aplicar_merito, recalcular_
 from app.services.whatsapp import gerar_link_whatsapp, montar_mensagem_infracao, montar_mensagem_merito
 
 router = APIRouter(prefix="/registros", tags=["registros"])
+
+GESTAO_ROLES = (PapelUsuario.admin_escola, PapelUsuario.coordenacao)
 
 
 def _get_aluno_da_escola(session: SessionDep, aluno_id: int, escola_id: int) -> Aluno:
@@ -188,6 +190,22 @@ def editar_registro_infracao(
         pontos_atuais=aluno.pontos_atuais,
         whatsapp_link=None,
     )
+
+
+@router.delete("/{registro_id}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_registro(
+    registro_id: int,
+    session: SessionDep,
+    usuario_atual=Depends(require_roles(*GESTAO_ROLES)),
+):
+    registro = _get_registro_da_escola(session, registro_id, usuario_atual.escola_id)
+    aluno = session.get(Aluno, registro.aluno_id)
+
+    recalcular_apos_edicao(aluno, registro.peso, 0)
+
+    session.delete(registro)
+    session.add(aluno)
+    session.commit()
 
 
 @router.get("", response_model=list[RegistroDisciplinarRead])

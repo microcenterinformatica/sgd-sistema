@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { Aluno, Punicao, RegistroDisciplinar } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   Select,
   SelectContent,
@@ -23,6 +27,8 @@ function calcularStatus(pontos: number, punicoes: Punicao[]): string {
 }
 
 function HistoricoContent() {
+  const { user } = useAuth();
+  const podeExcluir = user?.papel === "admin_escola" || user?.papel === "coordenacao";
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [punicoes, setPunicoes] = useState<Punicao[]>([]);
   const [registros, setRegistros] = useState<RegistroDisciplinar[]>([]);
@@ -30,23 +36,34 @@ function HistoricoContent() {
   const [buscaNome, setBuscaNome] = useState<string>("");
   const [erro, setErro] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function carregar() {
-      try {
-        const [a, p, r] = await Promise.all([
-          api.get<Aluno[]>("/alunos"),
-          api.get<Punicao[]>("/punicoes"),
-          api.get<RegistroDisciplinar[]>("/registros"),
-        ]);
-        setAlunos(a.sort((x, y) => x.nome.localeCompare(y.nome)));
-        setPunicoes(p);
-        setRegistros(r);
-      } catch (err) {
-        setErro(err instanceof ApiError ? err.message : "Erro ao carregar histórico");
-      }
+  async function carregar() {
+    try {
+      const [a, p, r] = await Promise.all([
+        api.get<Aluno[]>("/alunos"),
+        api.get<Punicao[]>("/punicoes"),
+        api.get<RegistroDisciplinar[]>("/registros"),
+      ]);
+      setAlunos(a.sort((x, y) => x.nome.localeCompare(y.nome)));
+      setPunicoes(p);
+      setRegistros(r);
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : "Erro ao carregar histórico");
     }
+  }
+
+  useEffect(() => {
     carregar();
   }, []);
+
+  async function excluirRegistro(id: number) {
+    try {
+      await api.delete(`/registros/${id}`);
+      await carregar();
+      toast.success("Registro excluído");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao excluir registro");
+    }
+  }
 
   const turmas = useMemo(() => {
     const unicas = new Set(alunos.map((a) => a.turma).filter((t): t is string => !!t));
@@ -135,7 +152,7 @@ function HistoricoContent() {
                 ) : (
                   <ul className="divide-y">
                     {historico.map((r) => (
-                      <li key={r.id} className="py-2 flex items-center justify-between">
+                      <li key={r.id} className="py-2 flex items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-medium text-foreground">{r.descricao}</p>
                           <p className="text-xs text-muted-foreground">
@@ -144,9 +161,24 @@ function HistoricoContent() {
                             {r.observacao ? ` — ${r.observacao}` : ""}
                           </p>
                         </div>
-                        <span className={`text-sm font-semibold ${r.peso >= 0 ? "text-destructive" : "text-emerald-600"}`}>
-                          {r.peso >= 0 ? `+${r.peso}` : r.peso}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-semibold ${r.peso >= 0 ? "text-destructive" : "text-emerald-600"}`}>
+                            {r.peso >= 0 ? `+${r.peso}` : r.peso}
+                          </span>
+                          {podeExcluir && (
+                            <ConfirmDialog
+                              trigger={
+                                <Button variant="ghost" size="sm" className="text-destructive">
+                                  Excluir
+                                </Button>
+                              }
+                              title="Excluir registro?"
+                              description={`Isso removerá "${r.descricao}" do histórico de ${aluno.nome} e recalculará a pontuação dele. Essa ação não pode ser desfeita.`}
+                              confirmLabel="Excluir"
+                              onConfirm={() => excluirRegistro(r.id)}
+                            />
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>

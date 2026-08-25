@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
 from app.models.aluno import Aluno
+from app.models.registro_disciplinar import RegistroDisciplinar
 from app.models.usuario import PapelUsuario
 from app.schemas.aluno import AlunoCreate, AlunoRead, AlunoUpdate
 
@@ -77,5 +80,25 @@ def atualizar_aluno(
 @router.delete("/{aluno_id}", status_code=status.HTTP_204_NO_CONTENT)
 def excluir_aluno(aluno_id: int, session: SessionDep, usuario_atual=Depends(require_roles(*GESTAO_ROLES))):
     aluno = _get_aluno_da_escola(session, aluno_id, usuario_atual.escola_id)
-    session.delete(aluno)
-    session.commit()
+
+    total_registros = session.exec(
+        select(func.count()).select_from(RegistroDisciplinar).where(RegistroDisciplinar.aluno_id == aluno_id)
+    ).one()
+    if total_registros > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Não é possível excluir {aluno.nome}: há {total_registros} registro(s) disciplinar(es) "
+                "(infrações/méritos) vinculados a este aluno. Remova o histórico dele antes de excluí-lo."
+            ),
+        )
+
+    try:
+        session.delete(aluno)
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Não é possível excluir {aluno.nome}: existem registros vinculados a este aluno.",
+        )
