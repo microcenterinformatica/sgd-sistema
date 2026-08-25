@@ -16,6 +16,7 @@ from app.models.conteudo_aula import ConteudoAula
 from app.models.lancamento import Lancamento
 from app.models.registro_falta import RegistroFalta
 from app.models.configuracao_periodo import ConfiguracaoPeriodo
+from app.models.ajuste_nota import AjusteNota
 
 __all__ = [
     "Escola",
@@ -38,4 +39,5 @@ __all__ = [
     "Lancamento",
     "RegistroFalta",
     "ConfiguracaoPeriodo",
+    "AjusteNota",
 ]

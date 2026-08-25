@@ -1,9 +1,11 @@
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select
 
 from app.api.deps import CurrentUserDep, SessionDep
+from app.core.permissoes import verificar_permissao_turma_disciplina
+from app.models.ajuste_nota import AjusteNota
 from app.models.aluno import Aluno
 from app.models.atividade import Atividade
 from app.models.atribuicao import Atribuicao
@@ -12,6 +14,7 @@ from app.models.configuracao_periodo import ConfiguracaoPeriodo
 from app.models.disciplina import Disciplina
 from app.models.lancamento import Lancamento
 from app.models.registro_falta import RegistroFalta
+from app.schemas.ajuste_nota import AjusteNotaCreate, AjusteNotaRead
 from app.schemas.boletim import (
     BoletimAluno,
     BoletimAnualAluno,
@@ -62,6 +65,21 @@ def _contar_faltas(
     return contagem
 
 
+def _buscar_ajustes(
+    session: SessionDep, disciplina_id: int, trimestre: int | None, aluno_ids: list[int]
+) -> dict[int, AjusteNota]:
+    if trimestre is None or not aluno_ids:
+        return {}
+    ajustes = session.exec(
+        select(AjusteNota).where(
+            AjusteNota.disciplina_id == disciplina_id,
+            AjusteNota.trimestre == trimestre,
+            AjusteNota.aluno_id.in_(aluno_ids),
+        )
+    ).all()
+    return {a.aluno_id: a for a in ajustes}
+
+
 def _calcular_boletim(
     session: SessionDep,
     escola_id: int,
@@ -70,6 +88,7 @@ def _calcular_boletim(
     data_inicio: date | None,
     data_fim: date | None,
     aluno_id: int | None = None,
+    trimestre: int | None = None,
 ) -> list[BoletimAluno]:
     """Nota final do período numa disciplina: agrupa atividades e provas pela categoria
     cadastrada (ex: "Tarefa de casa", "Atividade em sala"), tira a média do aluno em cada
@@ -98,20 +117,29 @@ def _calcular_boletim(
     faltas_por_aluno = _contar_faltas(
         session, escola_id, disciplina_id, [a.id for a in alunos], data_inicio, data_fim
     )
+    ajustes_por_aluno = _buscar_ajustes(session, disciplina_id, trimestre, [a.id for a in alunos])
 
     if not atividades:
-        return [
-            BoletimAluno(
-                aluno_id=a.id,
-                aluno_nome=a.nome,
-                grupos=[],
-                peso_total=0.0,
-                nota_final=0.0,
-                total_faltas=faltas_por_aluno.get(a.id, (0, 0))[0],
-                faltas_justificadas=faltas_por_aluno.get(a.id, (0, 0))[1],
+        resultado_sem_atividades: list[BoletimAluno] = []
+        for a in alunos:
+            ajuste = ajustes_por_aluno.get(a.id)
+            nota_ajustada = ajuste.nota_ajustada if ajuste else None
+            resultado_sem_atividades.append(
+                BoletimAluno(
+                    aluno_id=a.id,
+                    aluno_nome=a.nome,
+                    grupos=[],
+                    peso_total=0.0,
+                    nota_calculada=0.0,
+                    nota_final=nota_ajustada if nota_ajustada is not None else 0.0,
+                    nota_ajustada=nota_ajustada,
+                    ajuste_motivo=ajuste.motivo if ajuste else None,
+                    ajuste_id=ajuste.id if ajuste else None,
+                    total_faltas=faltas_por_aluno.get(a.id, (0, 0))[0],
+                    faltas_justificadas=faltas_por_aluno.get(a.id, (0, 0))[1],
+                )
             )
-            for a in alunos
-        ]
+        return resultado_sem_atividades
 
     atividades_por_categoria: dict[int, list[Atividade]] = {}
     for a in atividades:
@@ -135,7 +163,7 @@ def _calcular_boletim(
     resultado: list[BoletimAluno] = []
     for aluno in alunos:
         grupos: list[BoletimGrupoPeso] = []
-        nota_final = 0.0
+        nota_calculada = 0.0
         peso_total = 0.0
         for categoria_id in sorted(atividades_por_categoria, key=lambda cid: categorias[cid].nome.lower()):
             atividades_da_categoria = atividades_por_categoria[categoria_id]
@@ -154,8 +182,12 @@ def _calcular_boletim(
                     pontos=round(pontos, 2),
                 )
             )
-            nota_final += pontos
+            nota_calculada += pontos
             peso_total += categoria.peso
+
+        ajuste = ajustes_por_aluno.get(aluno.id)
+        nota_ajustada = ajuste.nota_ajustada if ajuste else None
+        nota_efetiva = nota_ajustada if nota_ajustada is not None else nota_calculada
 
         total_faltas, faltas_justificadas = faltas_por_aluno.get(aluno.id, (0, 0))
         resultado.append(
@@ -164,7 +196,11 @@ def _calcular_boletim(
                 aluno_nome=aluno.nome,
                 grupos=grupos,
                 peso_total=round(peso_total, 2),
-                nota_final=round(nota_final, 2),
+                nota_calculada=round(nota_calculada, 2),
+                nota_final=round(nota_efetiva, 2),
+                nota_ajustada=round(nota_ajustada, 2) if nota_ajustada is not None else None,
+                ajuste_motivo=ajuste.motivo if ajuste else None,
+                ajuste_id=ajuste.id if ajuste else None,
                 total_faltas=total_faltas,
                 faltas_justificadas=faltas_justificadas,
             )
@@ -182,9 +218,10 @@ def calcular_boletim(
     data_inicio: date | None = None,
     data_fim: date | None = None,
     aluno_id: int | None = None,
+    trimestre: int | None = None,
 ):
     return _calcular_boletim(
-        session, usuario_atual.escola_id, turma, disciplina_id, data_inicio, data_fim, aluno_id
+        session, usuario_atual.escola_id, turma, disciplina_id, data_inicio, data_fim, aluno_id, trimestre
     )
 
 
@@ -239,7 +276,7 @@ def calcular_boletim_anual(
         faltas_disciplina = 0
         for numero, inicio, fim in trimestres_datas:
             boletins = _calcular_boletim(
-                session, usuario_atual.escola_id, turma, disciplina.id, inicio, fim, aluno_id
+                session, usuario_atual.escola_id, turma, disciplina.id, inicio, fim, aluno_id, numero
             )
             boletim_aluno = boletins[0]
             trimestres.append(
@@ -249,7 +286,11 @@ def calcular_boletim_anual(
                     data_fim=fim,
                     grupos=boletim_aluno.grupos,
                     peso_total=boletim_aluno.peso_total,
+                    nota_calculada=boletim_aluno.nota_calculada,
                     nota_final=boletim_aluno.nota_final,
+                    nota_ajustada=boletim_aluno.nota_ajustada,
+                    ajuste_motivo=boletim_aluno.ajuste_motivo,
+                    ajuste_id=boletim_aluno.ajuste_id,
                     total_faltas=boletim_aluno.total_faltas,
                     faltas_justificadas=boletim_aluno.faltas_justificadas,
                 )
@@ -274,3 +315,60 @@ def calcular_boletim_anual(
         aluno_nome=aluno.nome,
         disciplinas=resultado_disciplinas,
     )
+
+
+def _get_aluno_para_ajuste(session: SessionDep, aluno_id: int, escola_id: int) -> Aluno:
+    aluno = session.get(Aluno, aluno_id)
+    if aluno is None or aluno.escola_id != escola_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aluno não encontrado")
+    if not aluno.turma:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Aluno sem turma cadastrada")
+    return aluno
+
+
+@router.put("/boletim/ajuste", response_model=AjusteNotaRead)
+def registrar_ajuste_nota(dados: AjusteNotaCreate, session: SessionDep, usuario_atual: CurrentUserDep):
+    if dados.trimestre not in (1, 2, 3):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trimestre deve ser 1, 2 ou 3")
+    if not dados.motivo.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Informe o motivo do ajuste")
+
+    aluno = _get_aluno_para_ajuste(session, dados.aluno_id, usuario_atual.escola_id)
+    verificar_permissao_turma_disciplina(session, usuario_atual, aluno.turma, dados.disciplina_id)
+
+    ajuste = session.exec(
+        select(AjusteNota).where(
+            AjusteNota.aluno_id == dados.aluno_id,
+            AjusteNota.disciplina_id == dados.disciplina_id,
+            AjusteNota.trimestre == dados.trimestre,
+        )
+    ).first()
+
+    if ajuste is None:
+        ajuste = AjusteNota(escola_id=usuario_atual.escola_id, registrado_por_usuario_id=usuario_atual.id)
+
+    ajuste.aluno_id = dados.aluno_id
+    ajuste.disciplina_id = dados.disciplina_id
+    ajuste.trimestre = dados.trimestre
+    ajuste.nota_ajustada = dados.nota_ajustada
+    ajuste.motivo = dados.motivo.strip()
+    ajuste.registrado_por_usuario_id = usuario_atual.id
+    ajuste.criado_em = datetime.utcnow()
+
+    session.add(ajuste)
+    session.commit()
+    session.refresh(ajuste)
+    return ajuste
+
+
+@router.delete("/boletim/ajuste/{ajuste_id}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_ajuste_nota(ajuste_id: int, session: SessionDep, usuario_atual: CurrentUserDep):
+    ajuste = session.get(AjusteNota, ajuste_id)
+    if ajuste is None or ajuste.escola_id != usuario_atual.escola_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ajuste não encontrado")
+
+    aluno = _get_aluno_para_ajuste(session, ajuste.aluno_id, usuario_atual.escola_id)
+    verificar_permissao_turma_disciplina(session, usuario_atual, aluno.turma, ajuste.disciplina_id)
+
+    session.delete(ajuste)
+    session.commit()

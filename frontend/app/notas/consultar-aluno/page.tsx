@@ -21,7 +21,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const ROTULOS_TIPO: Record<TipoAtividade, string> = {
   atividade: "Atividade",
@@ -40,6 +49,119 @@ function BadgePrazo({ noPrazo }: { noPrazo: boolean | null }) {
     <Badge className={noPrazo ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>
       {noPrazo ? "no prazo" : "atrasado"}
     </Badge>
+  );
+}
+
+function AjusteNotaDialog({
+  alunoId,
+  disciplinaId,
+  trimestre,
+  ajusteAtual,
+  onSalvo,
+}: {
+  alunoId: number;
+  disciplinaId: number;
+  trimestre: number;
+  ajusteAtual: { id: number; nota_ajustada: number; motivo: string | null } | null;
+  onSalvo: () => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [nota, setNota] = useState(ajusteAtual ? String(ajusteAtual.nota_ajustada) : "");
+  const [motivo, setMotivo] = useState(ajusteAtual?.motivo ?? "");
+  const [salvando, setSalvando] = useState(false);
+
+  function abrir(v: boolean) {
+    if (v) {
+      setNota(ajusteAtual ? String(ajusteAtual.nota_ajustada) : "");
+      setMotivo(ajusteAtual?.motivo ?? "");
+    }
+    setAberto(v);
+  }
+
+  async function salvar() {
+    if (!nota || !motivo.trim()) return;
+    setSalvando(true);
+    try {
+      await api.put("/boletim/ajuste", {
+        aluno_id: alunoId,
+        disciplina_id: disciplinaId,
+        trimestre,
+        nota_ajustada: Number(nota),
+        motivo: motivo.trim(),
+      });
+      toast.success("Nota ajustada com sucesso");
+      setAberto(false);
+      onSalvo();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao ajustar nota");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function remover() {
+    if (!ajusteAtual) return;
+    if (!confirm("Remover o ajuste e voltar para a nota calculada automaticamente?")) return;
+    setSalvando(true);
+    try {
+      await api.delete(`/boletim/ajuste/${ajusteAtual.id}`);
+      toast.success("Ajuste removido");
+      setAberto(false);
+      onSalvo();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao remover ajuste");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <Dialog open={aberto} onOpenChange={abrir}>
+      <DialogTrigger render={<span />}>
+        <Button variant="outline" size="sm">
+          {ajusteAtual ? "Editar ajuste" : "Ajustar nota"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Ajustar nota — {trimestre}º trimestre</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label title="Substitui a nota calculada automaticamente pelas atividades, sem apagar o histórico de lançamentos.">
+              Nota final ajustada
+            </Label>
+            <Input type="number" step="0.1" value={nota} onChange={(e) => setNota(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Motivo do ajuste</Label>
+            <Textarea
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              rows={2}
+              placeholder="Ex: aluno com laudo, decisão pedagógica do conselho de classe..."
+            />
+          </div>
+        </div>
+        <DialogFooter className="sm:justify-between">
+          {ajusteAtual ? (
+            <Button variant="destructive" onClick={remover} disabled={salvando}>
+              Remover ajuste
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setAberto(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={salvar} disabled={salvando || !nota || !motivo.trim()}>
+              {salvando ? "Salvando..." : "Salvar"}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -320,9 +442,28 @@ function ConsultarAlunoContent() {
                           </span>
                         </span>
                         <span className="text-xs text-muted-foreground">{t.total_faltas} falta(s)</span>
-                        <span className="text-sm font-bold text-foreground">
-                          {t.nota_final} / {t.peso_total}
+                        <span className="text-sm font-bold text-foreground" title={t.ajuste_motivo ?? undefined}>
+                          {t.nota_ajustada !== null ? (
+                            <>
+                              <span className="text-muted-foreground line-through font-normal">{t.nota_calculada}</span>{" "}
+                              {t.nota_ajustada}
+                            </>
+                          ) : (
+                            t.nota_calculada
+                          )}{" "}
+                          / {t.peso_total}
                         </span>
+                        <AjusteNotaDialog
+                          alunoId={boletimAnual.aluno_id}
+                          disciplinaId={disc.disciplina_id}
+                          trimestre={t.trimestre}
+                          ajusteAtual={
+                            t.ajuste_id !== null
+                              ? { id: t.ajuste_id, nota_ajustada: t.nota_ajustada as number, motivo: t.ajuste_motivo }
+                              : null
+                          }
+                          onSalvo={verBoletimAnual}
+                        />
                       </div>
                     ))}
                   </div>

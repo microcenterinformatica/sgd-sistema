@@ -17,7 +17,11 @@ class BoletimAluno(SQLModel):
     aluno_nome: str
     grupos: list[BoletimGrupoPeso]
     peso_total: float
+    nota_calculada: float
     nota_final: float
+    nota_ajustada: Optional[float] = None
+    ajuste_motivo: Optional[str] = None
+    ajuste_id: Optional[int] = None
     total_faltas: int
     faltas_justificadas: int
 
@@ -28,7 +32,11 @@ class BoletimTrimestre(SQLModel):
     data_fim: Optional[date]
     grupos: list[BoletimGrupoPeso]
     peso_total: float
+    nota_calculada: float
     nota_final: float
+    nota_ajustada: Optional[float] = None
+    ajuste_motivo: Optional[str] = None
+    ajuste_id: Optional[int] = None
     total_faltas: int
     faltas_justificadas: int
 

@@ -232,7 +232,11 @@ export interface BoletimAluno {
   aluno_nome: string;
   grupos: BoletimGrupoPeso[];
   peso_total: number;
+  nota_calculada: number;
   nota_final: number;
+  nota_ajustada: number | null;
+  ajuste_motivo: string | null;
+  ajuste_id: number | null;
   total_faltas: number;
   faltas_justificadas: number;
 }
@@ -243,7 +247,11 @@ export interface BoletimTrimestre {
   data_fim: string | null;
   grupos: BoletimGrupoPeso[];
   peso_total: number;
+  nota_calculada: number;
   nota_final: number;
+  nota_ajustada: number | null;
+  ajuste_motivo: string | null;
+  ajuste_id: number | null;
   total_faltas: number;
   faltas_justificadas: number;
 }
