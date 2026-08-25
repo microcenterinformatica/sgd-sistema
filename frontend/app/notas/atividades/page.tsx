@@ -328,6 +328,26 @@ function AtividadesContent() {
                 ))}
               </SelectContent>
             </Select>
+            {categorias.length > 0 && (
+              <Select
+                value={categoriaFiltro === "todas" ? "todas" : String(categoriaFiltro)}
+                onValueChange={(v) => setCategoriaFiltro(!v || v === "todas" ? "todas" : Number(v))}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue>
+                    {(v: string) => (v === "todas" || !v ? "Todas as categorias" : categorias.find((c) => String(c.id) === v)?.nome)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as categorias</SelectItem>
+                  {categorias.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         }
       />
@@ -351,30 +371,7 @@ function AtividadesContent() {
           {atividades === null ? (
             <p className="text-sm text-muted-foreground">Carregando...</p>
           ) : (
-            <>
-              {categorias.length > 0 && (
-                <div className="w-56 space-y-1">
-                  <Label className="text-xs text-muted-foreground">Mostrar</Label>
-                  <Select
-                    value={categoriaFiltro === "todas" ? "todas" : String(categoriaFiltro)}
-                    onValueChange={(v) => setCategoriaFiltro(!v || v === "todas" ? "todas" : Number(v))}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todas">Todas as categorias</SelectItem>
-                      {categorias.map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>
-                          {c.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <ListaAtividades atividades={atividadesExibidas ?? []} />
-            </>
+            <ListaAtividades atividades={atividadesExibidas ?? []} />
           )}
 
           {resumo && <ResumoAlunos resumo={resumo} />}
