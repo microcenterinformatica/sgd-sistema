@@ -224,6 +224,7 @@ function AtividadesContent() {
   const { categorias } = useCategoriasAtividade(disciplinaId);
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
+  const [categoriaFiltro, setCategoriaFiltro] = useState<number | "todas">("todas");
   const [atividades, setAtividades] = useState<Atividade[] | null>(null);
   const [resumo, setResumo] = useState<AtividadeResumoItem[] | null>(null);
   const [boletim, setBoletim] = useState<BoletimAluno[]>([]);
@@ -254,7 +255,15 @@ function AtividadesContent() {
   function selecionarDisciplina(id: number) {
     setDisciplinaId(id);
     salvarUltimaDisciplina(id);
+    setCategoriaFiltro("todas");
   }
+
+  const atividadesExibidas =
+    atividades === null
+      ? null
+      : categoriaFiltro === "todas"
+        ? atividades
+        : atividades.filter((a) => a.categoria_id === categoriaFiltro);
 
   async function carregar() {
     if (!turma || !disciplinaId) return;
@@ -342,7 +351,30 @@ function AtividadesContent() {
           {atividades === null ? (
             <p className="text-sm text-muted-foreground">Carregando...</p>
           ) : (
-            <ListaAtividades atividades={atividades} />
+            <>
+              {categorias.length > 0 && (
+                <div className="w-56 space-y-1">
+                  <Label className="text-xs text-muted-foreground">Mostrar</Label>
+                  <Select
+                    value={categoriaFiltro === "todas" ? "todas" : String(categoriaFiltro)}
+                    onValueChange={(v) => setCategoriaFiltro(!v || v === "todas" ? "todas" : Number(v))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas as categorias</SelectItem>
+                      {categorias.map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <ListaAtividades atividades={atividadesExibidas ?? []} />
+            </>
           )}
 
           {resumo && <ResumoAlunos resumo={resumo} />}
