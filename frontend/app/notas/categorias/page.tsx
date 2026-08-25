@@ -8,6 +8,7 @@ import { api, ApiError } from "@/lib/api";
 import { CategoriaAtividade } from "@/lib/types";
 import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { useCategoriasAtividade } from "@/lib/useCategoriasAtividade";
+import { escolherDisciplinaInicial, salvarUltimaDisciplina } from "@/lib/turmaPreferida";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -134,10 +135,15 @@ function CategoriasContent() {
 
   useEffect(() => {
     if (disciplinaId === "" && disciplinas.length > 0) {
-      setDisciplinaId(disciplinas[0].disciplina_id);
+      setDisciplinaId(escolherDisciplinaInicial(disciplinas.map((d) => d.disciplina_id)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [disciplinas.length]);
+
+  function selecionarDisciplina(id: number) {
+    setDisciplinaId(id);
+    salvarUltimaDisciplina(id);
+  }
 
   const { categorias, recarregarCategorias } = useCategoriasAtividade(disciplinaId);
   const disciplinaAtual = disciplinas.find((d) => d.disciplina_id === disciplinaId);
@@ -152,7 +158,7 @@ function CategoriasContent() {
       {disciplinas.length > 1 && (
         <div className="space-y-1 w-64">
           <Label>Disciplina</Label>
-          <Select value={disciplinaId ? String(disciplinaId) : ""} onValueChange={(v) => v && setDisciplinaId(Number(v))}>
+          <Select value={disciplinaId ? String(disciplinaId) : ""} onValueChange={(v) => v && selecionarDisciplina(Number(v))}>
             <SelectTrigger className="w-full">
               <SelectValue>
                 {(v: string) => disciplinas.find((d) => String(d.disciplina_id) === v)?.disciplina_nome ?? "Selecione..."}
