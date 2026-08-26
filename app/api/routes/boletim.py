@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select
 
 from app.api.deps import CurrentUserDep, SessionDep
-from app.core.permissoes import verificar_permissao_turma_disciplina
+from app.core.permissoes import segmento_da_turma, verificar_permissao_turma_disciplina
 from app.models.ajuste_nota import AjusteNota
 from app.models.aluno import Aluno
 from app.models.atividade import Atividade
@@ -14,6 +14,7 @@ from app.models.configuracao_periodo import ConfiguracaoPeriodo
 from app.models.disciplina import Disciplina
 from app.models.lancamento import Lancamento
 from app.models.registro_falta import RegistroFalta
+from app.models.turma import SegmentoTurma
 from app.schemas.ajuste_nota import AjusteNotaCreate, AjusteNotaRead
 from app.schemas.boletim import (
     BoletimAluno,
@@ -41,13 +42,24 @@ def _contar_faltas(
     aluno_ids: list[int],
     data_inicio: date | None,
     data_fim: date | None,
+    segmento: SegmentoTurma = SegmentoTurma.fundamental_2,
 ) -> dict[int, tuple[int, int]]:
-    """Retorna, por aluno_id, (total_faltas, faltas_justificadas) no período, numa disciplina."""
+    """Retorna, por aluno_id, (total_faltas, faltas_justificadas) no período.
+
+    Em turmas Fundamental 1 a falta é registrada uma vez por dia (vale para todas as
+    disciplinas da professora), então aqui ela é contada por `disciplina_id IS NULL`
+    em vez de casar com a disciplina específica.
+    """
     if not aluno_ids:
         return {}
+    filtro_disciplina = (
+        RegistroFalta.disciplina_id.is_(None)
+        if segmento == SegmentoTurma.fundamental_1
+        else RegistroFalta.disciplina_id == disciplina_id
+    )
     query = select(RegistroFalta).where(
         RegistroFalta.escola_id == escola_id,
-        RegistroFalta.disciplina_id == disciplina_id,
+        filtro_disciplina,
         RegistroFalta.aluno_id.in_(aluno_ids),
     )
     if data_inicio:
@@ -114,8 +126,9 @@ def _calcular_boletim(
     if aluno_id is not None:
         alunos = [a for a in alunos if a.id == aluno_id]
 
+    segmento = segmento_da_turma(session, escola_id, turma)
     faltas_por_aluno = _contar_faltas(
-        session, escola_id, disciplina_id, [a.id for a in alunos], data_inicio, data_fim
+        session, escola_id, disciplina_id, [a.id for a in alunos], data_inicio, data_fim, segmento
     )
     ajustes_por_aluno = _buscar_ajustes(session, disciplina_id, trimestre, [a.id for a in alunos])
 

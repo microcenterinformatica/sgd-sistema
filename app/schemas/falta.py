@@ -7,7 +7,7 @@ from sqlmodel import SQLModel
 class FaltaRead(SQLModel):
     id: int
     aluno_id: int
-    disciplina_id: int
+    disciplina_id: Optional[int]
     data: date
     justificada: bool
     observacao: Optional[str]

@@ -101,11 +101,14 @@ export interface Disciplina {
   ativo: boolean;
 }
 
+export type SegmentoTurma = "fundamental_1" | "fundamental_2";
+
 export interface Turma {
   id: number;
   escola_id: number;
   nome: string;
   ativo: boolean;
+  segmento: SegmentoTurma;
 }
 
 export interface ProfessorResumo {
@@ -158,7 +161,7 @@ export interface FaltaResumoItem {
 export interface FaltaRead {
   id: number;
   aluno_id: number;
-  disciplina_id: number;
+  disciplina_id: number | null;
   data: string;
   justificada: boolean;
   observacao: string | null;

@@ -32,7 +32,7 @@ def listar_turmas_cadastro(session: SessionDep, usuario_atual: CurrentUserDep):
     "/turmas-cadastro", response_model=TurmaRead, status_code=status.HTTP_201_CREATED, dependencies=[GerenciarTurmas]
 )
 def criar_turma(dados: TurmaCreate, session: SessionDep, usuario_atual: CurrentUserDep):
-    turma = Turma(escola_id=usuario_atual.escola_id, nome=dados.nome.strip())
+    turma = Turma(escola_id=usuario_atual.escola_id, nome=dados.nome.strip(), segmento=dados.segmento)
     session.add(turma)
     try:
         session.commit()

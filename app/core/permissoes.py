@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 
 from app.models.atribuicao import Atribuicao
 from app.models.professor import Professor
+from app.models.turma import SegmentoTurma, Turma
 from app.models.usuario import Usuario
 
 PAPEIS_ACESSO_TOTAL = ("admin_escola", "coordenacao")
@@ -46,6 +47,16 @@ def verificar_permissao_turma_disciplina(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Você não tem permissão para lançar nesta turma/disciplina.",
         )
+
+
+def segmento_da_turma(session: Session, escola_id: int, turma_nome: str) -> SegmentoTurma:
+    """Retorna o segmento da turma (Fundamental 1/2). Se a turma não estiver cadastrada
+    em `Turma` (string legada), assume Fundamental 2 — comportamento de faltas por
+    disciplina, igual ao que já existia antes desse conceito."""
+    turma = session.exec(
+        select(Turma).where(Turma.escola_id == escola_id, Turma.nome == turma_nome)
+    ).first()
+    return turma.segmento if turma else SegmentoTurma.fundamental_2
 
 
 def verificar_permissao_disciplina(

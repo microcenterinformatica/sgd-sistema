@@ -111,7 +111,9 @@ function FrequenciaContent() {
 
   async function carregarResumo() {
     if (!disciplinaId) return;
-    const lista = await api.get<FaltaResumoItem[]>(`/faltas/resumo?disciplina_id=${disciplinaId}`);
+    const lista = await api.get<FaltaResumoItem[]>(
+      `/faltas/resumo?disciplina_id=${disciplinaId}&turma=${encodeURIComponent(turma)}`
+    );
     setResumo(lista);
   }
 

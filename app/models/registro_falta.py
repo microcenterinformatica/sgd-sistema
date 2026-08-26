@@ -10,7 +10,7 @@ class RegistroFalta(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     aluno_id: int = Field(index=True)
     escola_id: int = Field(index=True)
-    disciplina_id: int = Field(foreign_key="disciplina.id", index=True)
+    disciplina_id: Optional[int] = Field(default=None, foreign_key="disciplina.id", index=True)
     data: date
     justificada: bool = Field(default=False)
     observacao: Optional[str] = Field(default=None)
