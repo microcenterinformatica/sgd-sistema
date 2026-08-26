@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
     alunos,
+    anos_letivos,
     atividades,
     atribuicoes,
     auth,
@@ -49,6 +50,7 @@ app.include_router(atividades.router)
 app.include_router(faltas.router)
 app.include_router(boletim.router)
 app.include_router(ranking.router)
+app.include_router(anos_letivos.router)
 
 
 @app.get("/health")

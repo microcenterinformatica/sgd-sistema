@@ -1,6 +1,7 @@
 from datetime import date
 
 from fastapi import APIRouter, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.api.deps import CurrentUserDep, SessionDep
@@ -87,7 +88,13 @@ def criar_atividade(dados: AtividadeCreate, session: SessionDep, usuario_atual: 
 
     atividade = Atividade(escola_id=usuario_atual.escola_id, **dados_dict)
     session.add(atividade)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Turma '{dados.turma}' não encontrada."
+        )
     session.refresh(atividade)
     return _montar_atividade_read(atividade, categoria)
 

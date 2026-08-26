@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import Index, text
+from sqlalchemy import ForeignKeyConstraint, Index, text
 from sqlmodel import Field, SQLModel
 
 
@@ -14,12 +14,20 @@ class RegistroFalta(SQLModel, table=True):
             unique=True,
         ),
         Index("ix_registro_falta_aluno_data", "aluno_id", "data"),
+        ForeignKeyConstraint(
+            ["escola_id", "aluno_id"], ["aluno.escola_id", "aluno.id"],
+            name="registro_falta_aluno_composta_fkey",
+        ),
+        ForeignKeyConstraint(
+            ["escola_id", "disciplina_id"], ["disciplina.escola_id", "disciplina.id"],
+            name="registro_falta_disciplina_composta_fkey",
+        ),
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    aluno_id: int = Field(foreign_key="aluno.id", index=True)
+    aluno_id: int = Field(index=True)
     escola_id: int = Field(foreign_key="escola.id", index=True)
-    disciplina_id: Optional[int] = Field(default=None, foreign_key="disciplina.id", index=True)
+    disciplina_id: Optional[int] = Field(default=None, index=True)
     data: date
     justificada: bool = Field(default=False)
     observacao: Optional[str] = Field(default=None)

@@ -12,7 +12,10 @@ class SegmentoTurma(str, Enum):
 
 class Turma(SQLModel, table=True):
     __tablename__ = "turma"
-    __table_args__ = (UniqueConstraint("escola_id", "nome", name="uq_turma_escola_nome"),)
+    __table_args__ = (
+        UniqueConstraint("escola_id", "nome", name="uq_turma_escola_nome"),
+        UniqueConstraint("escola_id", "id", name="uq_turma_escola_id"),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     escola_id: int = Field(foreign_key="escola.id", index=True)

@@ -21,6 +21,7 @@ import {
   Settings2,
   Tags,
   Layers,
+  CalendarRange,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -51,6 +52,7 @@ const ITENS_PRINCIPAIS = [
 const ITENS_GESTAO = [
   { href: "/gestao/alunos", label: "Alunos", icon: GraduationCap },
   { href: "/gestao/turmas", label: "Turmas", icon: Layers },
+  { href: "/gestao/anos-letivos", label: "Anos Letivos", icon: CalendarRange },
   { href: "/gestao/regras", label: "Regras", icon: Scale },
   { href: "/gestao/punicoes", label: "Condutas", icon: ScrollText },
   { href: "/gestao/professores", label: "Professores", icon: Users },

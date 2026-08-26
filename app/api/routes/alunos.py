@@ -4,8 +4,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
+from app.core.ano_letivo import ano_letivo_atual
 from app.models.aluno import Aluno
+from app.models.matricula_turma import MatriculaTurma
 from app.models.registro_disciplinar import RegistroDisciplinar
+from app.models.turma import Turma
 from app.models.usuario import PapelUsuario
 from app.schemas.aluno import AlunoCreate, AlunoRead, AlunoUpdate
 
@@ -21,6 +24,32 @@ def _get_aluno_da_escola(session: SessionDep, aluno_id: int, escola_id: int) -> 
     return aluno
 
 
+def _sincronizar_matricula_turma(session: SessionDep, aluno: Aluno) -> None:
+    """Grava/atualiza o histórico de matrícula por ano letivo a partir da turma
+    atual do aluno, sem afetar em nada as telas que já usam aluno.turma direto."""
+    if not aluno.turma:
+        return
+    ano = ano_letivo_atual(session, aluno.escola_id)
+    if ano is None:
+        return
+    turma = session.exec(
+        select(Turma).where(Turma.escola_id == aluno.escola_id, Turma.nome == aluno.turma)
+    ).first()
+    if turma is None:
+        return
+
+    matricula = session.exec(
+        select(MatriculaTurma).where(
+            MatriculaTurma.aluno_id == aluno.id, MatriculaTurma.ano_letivo_id == ano.id
+        )
+    ).first()
+    if matricula is None:
+        matricula = MatriculaTurma(aluno_id=aluno.id, turma_id=turma.id, ano_letivo_id=ano.id)
+    matricula.turma_id = turma.id
+    matricula.numero_chamada = aluno.numero_chamada
+    session.add(matricula)
+
+
 @router.post("", response_model=AlunoRead, status_code=status.HTTP_201_CREATED)
 def criar_aluno(dados: AlunoCreate, session: SessionDep, usuario_atual=Depends(require_roles(*GESTAO_ROLES))):
     ja_existe = session.exec(
@@ -31,8 +60,19 @@ def criar_aluno(dados: AlunoCreate, session: SessionDep, usuario_atual=Depends(r
 
     aluno = Aluno(escola_id=usuario_atual.escola_id, **dados.model_dump())
     session.add(aluno)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Turma '{dados.turma}' não encontrada. Cadastre a turma antes de vincular o aluno a ela.",
+        )
     session.refresh(aluno)
+
+    _sincronizar_matricula_turma(session, aluno)
+    session.commit()
+
     return aluno
 
 
@@ -68,12 +108,26 @@ def atualizar_aluno(
 ):
     aluno = _get_aluno_da_escola(session, aluno_id, usuario_atual.escola_id)
 
-    for campo, valor in dados.model_dump(exclude_unset=True).items():
+    campos_alterados = dados.model_dump(exclude_unset=True)
+    turma_tentada = campos_alterados.get("turma", aluno.turma)
+    for campo, valor in campos_alterados.items():
         setattr(aluno, campo, valor)
 
     session.add(aluno)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Turma '{turma_tentada}' não encontrada. Cadastre a turma antes de vincular o aluno a ela.",
+        )
     session.refresh(aluno)
+
+    if "turma" in campos_alterados or "numero_chamada" in campos_alterados:
+        _sincronizar_matricula_turma(session, aluno)
+        session.commit()
+
     return aluno
 
 

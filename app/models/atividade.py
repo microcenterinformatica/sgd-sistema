@@ -2,7 +2,7 @@ from datetime import date
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import CheckConstraint
+from sqlalchemy import CheckConstraint, ForeignKeyConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -17,12 +17,24 @@ class Atividade(SQLModel, table=True):
         CheckConstraint(
             "data_entrega IS NULL OR data_entrega >= data", name="ck_atividade_nota_data_entrega"
         ),
+        ForeignKeyConstraint(
+            ["escola_id", "disciplina_id"], ["disciplina.escola_id", "disciplina.id"],
+            name="atividade_nota_disciplina_composta_fkey",
+        ),
+        ForeignKeyConstraint(
+            ["escola_id", "professor_id"], ["professor.escola_id", "professor.id"],
+            name="atividade_nota_professor_composta_fkey",
+        ),
+        ForeignKeyConstraint(
+            ["escola_id", "turma"], ["turma.escola_id", "turma.nome"],
+            name="atividade_nota_turma_fkey",
+        ),
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     escola_id: int = Field(foreign_key="escola.id", index=True)
-    professor_id: Optional[int] = Field(default=None, foreign_key="professor.id")
-    disciplina_id: int = Field(foreign_key="disciplina.id", index=True)
+    professor_id: Optional[int] = Field(default=None, index=True)
+    disciplina_id: int = Field(index=True)
     turma: Optional[str] = Field(default=None, index=True)
     titulo: str
     tipo: TipoAtividade

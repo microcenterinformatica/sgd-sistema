@@ -111,6 +111,15 @@ export interface Turma {
   segmento: SegmentoTurma;
 }
 
+export interface AnoLetivo {
+  id: number;
+  escola_id: number;
+  ano: number;
+  data_inicio: string | null;
+  data_fim: string | null;
+  situacao: string;
+}
+
 export interface ProfessorResumo {
   id: number;
   nome: string;
