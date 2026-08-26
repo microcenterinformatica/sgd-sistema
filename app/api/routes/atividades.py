@@ -102,6 +102,11 @@ def atualizar_atividade(
         _get_categoria_valida(session, dados_dict["categoria_id"], usuario_atual.escola_id, atividade.disciplina_id)
     for campo, valor in dados_dict.items():
         setattr(atividade, campo, valor)
+    if atividade.data_entrega is not None and atividade.data_entrega < atividade.data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Data de entrega não pode ser anterior à data da atividade",
+        )
     session.add(atividade)
     session.commit()
     session.refresh(atividade)

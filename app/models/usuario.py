@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import Optional
 
+from sqlalchemy import Index, text
 from sqlmodel import Field, SQLModel
 
 
@@ -12,11 +13,14 @@ class PapelUsuario(str, Enum):
 
 class Usuario(SQLModel, table=True):
     __tablename__ = "usuario"
+    __table_args__ = (
+        Index("uq_usuario_email_lower", text("lower(email)"), unique=True),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     escola_id: int = Field(foreign_key="escola.id", index=True)
     nome: str
-    email: str = Field(index=True, unique=True)
+    email: str
     senha_hash: str
     papel: PapelUsuario
     ativo: bool = Field(default=True)

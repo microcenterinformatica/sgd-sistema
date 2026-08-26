@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
@@ -34,7 +35,11 @@ def listar_disciplinas(session: SessionDep, usuario_atual: CurrentUserDep):
 def criar_disciplina(dados: DisciplinaCreate, session: SessionDep, usuario_atual: CurrentUserDep):
     disciplina = Disciplina(escola_id=usuario_atual.escola_id, nome=dados.nome)
     session.add(disciplina)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Já existe uma disciplina com esse nome.")
     session.refresh(disciplina)
     return disciplina
 
@@ -47,7 +52,11 @@ def atualizar_disciplina(
     for campo, valor in dados.model_dump(exclude_unset=True).items():
         setattr(disciplina, campo, valor)
     session.add(disciplina)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Já existe uma disciplina com esse nome.")
     session.refresh(disciplina)
     return disciplina
 

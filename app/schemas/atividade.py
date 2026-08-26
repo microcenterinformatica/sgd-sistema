@@ -1,6 +1,7 @@
 from datetime import date
 from typing import Optional
 
+from pydantic import model_validator
 from sqlmodel import SQLModel
 
 from app.models.atividade import TipoAtividade
@@ -15,6 +16,12 @@ class AtividadeCreate(SQLModel):
     categoria_id: int
     data: date
     data_entrega: Optional[date] = None
+
+    @model_validator(mode="after")
+    def _validar_data_entrega(self):
+        if self.data_entrega is not None and self.data_entrega < self.data:
+            raise ValueError("Data de entrega não pode ser anterior à data da atividade")
+        return self
 
 
 class AtividadeUpdate(SQLModel):

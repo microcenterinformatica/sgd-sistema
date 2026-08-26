@@ -130,6 +130,7 @@ def salvar_chamada(dados: ChamadaSalvar, session: SessionDep, usuario_atual: Cur
     ).all()
     for falta in faltas_existentes:
         session.delete(falta)
+    session.flush()
 
     for item in dados.faltas:
         session.add(

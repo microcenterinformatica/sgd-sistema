@@ -9,7 +9,7 @@ class Atribuicao(SQLModel, table=True):
     __tablename__ = "atribuicao_professor"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    escola_id: int = Field(index=True)
-    professor_id: int = Field(index=True)
+    escola_id: int = Field(foreign_key="escola.id", index=True)
+    professor_id: int = Field(foreign_key="professor.id", index=True)
     disciplina_id: int = Field(foreign_key="disciplina.id", index=True)
     turma: str = Field(index=True)

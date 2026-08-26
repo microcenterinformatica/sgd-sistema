@@ -1,6 +1,7 @@
 from datetime import date
 from typing import Optional
 
+from pydantic import Field
 from sqlmodel import SQLModel
 
 from app.models.atividade import TipoAtividade
@@ -8,7 +9,7 @@ from app.models.atividade import TipoAtividade
 
 class LancamentoItem(SQLModel):
     aluno_id: int
-    nota: Optional[float] = None
+    nota: Optional[float] = Field(default=None, ge=0, le=10)
     fez: Optional[bool] = None
     entregue_em: Optional[date] = None
     observacao: Optional[str] = None
