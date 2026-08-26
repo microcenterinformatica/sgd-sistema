@@ -4,14 +4,70 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
-import { ConfiguracaoPeriodo } from "@/lib/types";
+import { ConfiguracaoPeriodo, ConfiguracaoRanking } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const TRIMESTRES = [1, 2, 3] as const;
+
+function ConfiguracaoRankingCard() {
+  const [pesoFalta, setPesoFalta] = useState("1");
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    api
+      .get<ConfiguracaoRanking>("/configuracao-ranking")
+      .then((c) => setPesoFalta(String(c.peso_falta)))
+      .catch((err) => toast.error(err instanceof ApiError ? err.message : "Erro ao carregar configuração"))
+      .finally(() => setCarregando(false));
+  }, []);
+
+  async function salvar() {
+    setSalvando(true);
+    try {
+      await api.put("/configuracao-ranking", { peso_falta: Number(pesoFalta) });
+      toast.success("Configuração salva com sucesso.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao salvar");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="border-b pb-3">
+        <CardTitle>Ranking de Mérito</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-1 max-w-xs">
+          <Label>Peso de cada falta não justificada</Label>
+          {carregando ? (
+            <p className="text-sm text-muted-foreground">Carregando...</p>
+          ) : (
+            <Input
+              type="number"
+              min="0"
+              step="0.5"
+              value={pesoFalta}
+              onChange={(e) => setPesoFalta(e.target.value)}
+            />
+          )}
+          <p className="text-xs text-muted-foreground">
+            Quantos pontos cada falta não justificada desconta na pontuação do ranking.
+          </p>
+        </div>
+        <Button onClick={salvar} disabled={salvando || carregando} variant="success">
+          {salvando ? "Salvando..." : "Salvar"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
 
 function ConfiguracoesContent() {
   const [config, setConfig] = useState<Record<string, string>>({});
@@ -89,6 +145,8 @@ function ConfiguracoesContent() {
       <Button onClick={salvar} disabled={salvando} variant="success" size="lg">
         {salvando ? "Salvando..." : "Salvar configuração"}
       </Button>
+
+      <ConfiguracaoRankingCard />
     </div>
   );
 }

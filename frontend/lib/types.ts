@@ -222,6 +222,20 @@ export interface ConfiguracaoPeriodo {
   trimestre3_fim: string | null;
 }
 
+export interface ConfiguracaoRanking {
+  peso_falta: number;
+}
+
+export interface RankingItem {
+  aluno_id: number;
+  aluno_nome: string;
+  turma: string | null;
+  total_merito: number;
+  total_infracao: number;
+  faltas_nao_justificadas: number;
+  pontuacao: number;
+}
+
 export interface BoletimGrupoPeso {
   categoria: string;
   peso: number;

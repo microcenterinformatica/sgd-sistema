@@ -1,0 +1,91 @@
+from fastapi import APIRouter, Depends
+from sqlmodel import func, select
+
+from app.api.deps import CurrentUserDep, SessionDep, require_roles
+from app.models.aluno import Aluno
+from app.models.configuracao_ranking import ConfiguracaoRanking
+from app.models.registro_disciplinar import RegistroDisciplinar, TipoRegistro
+from app.models.registro_falta import RegistroFalta
+from app.models.usuario import PapelUsuario
+from app.schemas.ranking import ConfiguracaoRankingRead, ConfiguracaoRankingUpdate, RankingItem
+
+router = APIRouter(tags=["ranking"])
+
+GESTAO_ROLES = (PapelUsuario.admin_escola, PapelUsuario.coordenacao)
+
+
+@router.get("/configuracao-ranking", response_model=ConfiguracaoRankingRead)
+def obter_configuracao_ranking(session: SessionDep, usuario_atual: CurrentUserDep):
+    config = session.get(ConfiguracaoRanking, usuario_atual.escola_id)
+    if config is None:
+        config = ConfiguracaoRanking(escola_id=usuario_atual.escola_id)
+    return config
+
+
+@router.put(
+    "/configuracao-ranking",
+    response_model=ConfiguracaoRankingRead,
+    dependencies=[Depends(require_roles(*GESTAO_ROLES))],
+)
+def atualizar_configuracao_ranking(
+    dados: ConfiguracaoRankingUpdate, session: SessionDep, usuario_atual: CurrentUserDep
+):
+    config = session.get(ConfiguracaoRanking, usuario_atual.escola_id)
+    if config is None:
+        config = ConfiguracaoRanking(escola_id=usuario_atual.escola_id)
+    for campo, valor in dados.model_dump(exclude_unset=True).items():
+        setattr(config, campo, valor)
+    session.add(config)
+    session.commit()
+    session.refresh(config)
+    return config
+
+
+def _somar_peso_por_tipo(session: SessionDep, escola_id: int, tipo: TipoRegistro) -> dict[int, int]:
+    linhas = session.exec(
+        select(RegistroDisciplinar.aluno_id, func.sum(RegistroDisciplinar.peso))
+        .join(Aluno, Aluno.id == RegistroDisciplinar.aluno_id)
+        .where(Aluno.escola_id == escola_id, RegistroDisciplinar.tipo == tipo)
+        .group_by(RegistroDisciplinar.aluno_id)
+    ).all()
+    return dict(linhas)
+
+
+@router.get("/ranking", response_model=list[RankingItem])
+def calcular_ranking(session: SessionDep, usuario_atual: CurrentUserDep):
+    escola_id = usuario_atual.escola_id
+    alunos = session.exec(select(Aluno).where(Aluno.escola_id == escola_id)).all()
+
+    infracao_por_aluno = _somar_peso_por_tipo(session, escola_id, TipoRegistro.infracao)
+    merito_bruto_por_aluno = _somar_peso_por_tipo(session, escola_id, TipoRegistro.merito)
+
+    faltas_por_aluno = dict(
+        session.exec(
+            select(RegistroFalta.aluno_id, func.count())
+            .where(RegistroFalta.escola_id == escola_id, RegistroFalta.justificada == False)  # noqa: E712
+            .group_by(RegistroFalta.aluno_id)
+        ).all()
+    )
+
+    config = session.get(ConfiguracaoRanking, escola_id)
+    peso_falta = config.peso_falta if config else 1.0
+
+    resultado: list[RankingItem] = []
+    for aluno in alunos:
+        total_merito = -merito_bruto_por_aluno.get(aluno.id, 0)
+        total_infracao = infracao_por_aluno.get(aluno.id, 0)
+        faltas = faltas_por_aluno.get(aluno.id, 0)
+        pontuacao = total_merito - total_infracao - peso_falta * faltas
+        resultado.append(
+            RankingItem(
+                aluno_id=aluno.id,
+                aluno_nome=aluno.nome,
+                turma=aluno.turma,
+                total_merito=total_merito,
+                total_infracao=total_infracao,
+                faltas_nao_justificadas=faltas,
+                pontuacao=round(pontuacao, 2),
+            )
+        )
+
+    return resultado

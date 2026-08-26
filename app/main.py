@@ -13,6 +13,7 @@ from app.api.routes import (
     faltas,
     professores,
     punicoes,
+    ranking,
     recuperacao,
     regras,
     registros,
@@ -47,6 +48,7 @@ app.include_router(categorias.router)
 app.include_router(atividades.router)
 app.include_router(faltas.router)
 app.include_router(boletim.router)
+app.include_router(ranking.router)
 
 
 @app.get("/health")

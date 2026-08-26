@@ -6,6 +6,7 @@ from app.models.punicao import Punicao
 from app.models.professor import Professor
 from app.models.registro_disciplinar import RegistroDisciplinar, TipoRegistro
 from app.models.configuracao_recuperacao import ConfiguracaoRecuperacao
+from app.models.configuracao_ranking import ConfiguracaoRanking
 
 from app.models.disciplina import Disciplina
 from app.models.turma import Turma
@@ -29,6 +30,7 @@ __all__ = [
     "RegistroDisciplinar",
     "TipoRegistro",
     "ConfiguracaoRecuperacao",
+    "ConfiguracaoRanking",
     "Disciplina",
     "Turma",
     "Atribuicao",
