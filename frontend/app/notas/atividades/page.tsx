@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
-import { Atividade, AtividadeResumoItem, BoletimAluno, CategoriaAtividade } from "@/lib/types";
+import { Aluno, Atividade, AtividadeResumoItem, BoletimAluno, CategoriaAtividade, Punicao } from "@/lib/types";
 import {
   escolherDisciplinaInicial,
   escolherTurmaInicial,
@@ -17,6 +17,8 @@ import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { useCategoriasAtividade } from "@/lib/useCategoriasAtividade";
 import { PageHeader } from "@/components/PageHeader";
 import { CategoriaAtividadeField } from "@/components/CategoriaAtividadeField";
+import { AtividadesResumoCard } from "@/components/AtividadesResumoCard";
+import { BoletimTurmaCard } from "@/components/BoletimTurmaCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -156,67 +158,6 @@ function ListaAtividades({ atividades }: { atividades: Atividade[] }) {
   );
 }
 
-function ResumoAlunos({ resumo }: { resumo: AtividadeResumoItem[] }) {
-  if (resumo.length === 0) return null;
-
-  function corBarra(percentual: number) {
-    if (percentual >= 80) return "bg-emerald-500";
-    if (percentual >= 50) return "bg-amber-500";
-    return "bg-red-500";
-  }
-
-  return (
-    <Card>
-      <CardHeader className="border-b pb-3">
-        <CardTitle>Resumo — % de atividades feitas por aluno</CardTitle>
-      </CardHeader>
-      <CardContent className="divide-y">
-        {resumo.map((r) => (
-          <div key={r.aluno_id} className="py-3 flex items-center gap-4 first:pt-0">
-            <span className="text-sm text-foreground w-40 truncate">{r.aluno_nome}</span>
-            <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-              <div className={`h-full ${corBarra(r.percentual)}`} style={{ width: `${r.percentual}%` }} />
-            </div>
-            <span className="text-xs font-medium text-muted-foreground w-24 text-right">
-              {r.total_fez}/{r.total_atividades} ({r.percentual}%)
-            </span>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-function BoletimTurma({ boletim }: { boletim: BoletimAluno[] }) {
-  if (boletim.length === 0) return null;
-
-  return (
-    <Card>
-      <CardHeader className="border-b pb-3">
-        <CardTitle>Boletim da turma — nota final do período</CardTitle>
-      </CardHeader>
-      <CardContent className="divide-y">
-        {boletim.map((b) => (
-          <div key={b.aluno_id} className="py-3 flex items-center justify-between gap-4 first:pt-0">
-            <span className="text-sm text-foreground w-40 truncate">{b.aluno_nome}</span>
-            <div className="flex-1 flex flex-wrap gap-2">
-              {b.grupos.map((g) => (
-                <span key={g.categoria} className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
-                  {g.categoria} (peso {g.peso}): {g.pontos} pts
-                </span>
-              ))}
-            </div>
-            <span className="text-xs text-muted-foreground w-20 text-right">{b.total_faltas} falta(s)</span>
-            <span className="text-sm font-bold text-foreground w-24 text-right">
-              {b.nota_final} / {b.peso_total}
-            </span>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
 function AtividadesContent() {
   const { turmas, disciplinasDaTurma } = useAtribuicoes();
   const [turma, setTurma] = useState("");
@@ -228,6 +169,14 @@ function AtividadesContent() {
   const [atividades, setAtividades] = useState<Atividade[] | null>(null);
   const [resumo, setResumo] = useState<AtividadeResumoItem[] | null>(null);
   const [boletim, setBoletim] = useState<BoletimAluno[]>([]);
+  const [alunosCompletos, setAlunosCompletos] = useState<Aluno[]>([]);
+  const [punicoes, setPunicoes] = useState<Punicao[]>([]);
+
+  useEffect(() => {
+    api.get<Punicao[]>("/punicoes").then(setPunicoes).catch(() => {});
+  }, []);
+
+  const alunosCompletosPorId = new Map(alunosCompletos.map((a) => [a.id, a]));
 
   useEffect(() => {
     if (turmas.length === 0) return;
@@ -270,14 +219,16 @@ function AtividadesContent() {
     const params = new URLSearchParams({ turma, disciplina_id: String(disciplinaId) });
     if (dataInicio) params.set("data_inicio", dataInicio);
     if (dataFim) params.set("data_fim", dataFim);
-    const [listaAtividades, listaResumo, listaBoletim] = await Promise.all([
+    const [listaAtividades, listaResumo, listaBoletim, listaAlunos] = await Promise.all([
       api.get<Atividade[]>(`/atividades?${params.toString()}`),
       api.get<AtividadeResumoItem[]>(`/atividades/resumo?turma=${encodeURIComponent(turma)}&disciplina_id=${disciplinaId}`),
       api.get<BoletimAluno[]>(`/boletim?${params.toString()}`),
+      api.get<Aluno[]>("/alunos"),
     ]);
     setAtividades(listaAtividades.filter((a) => a.tipo !== "prova"));
     setResumo(listaResumo);
     setBoletim(listaBoletim);
+    setAlunosCompletos(listaAlunos);
   }
 
   useEffect(() => {
@@ -374,9 +325,9 @@ function AtividadesContent() {
             <ListaAtividades atividades={atividadesExibidas ?? []} />
           )}
 
-          {resumo && <ResumoAlunos resumo={resumo} />}
+          {resumo && <AtividadesResumoCard resumo={resumo} />}
 
-          <BoletimTurma boletim={boletim} />
+          <BoletimTurmaCard boletim={boletim} alunosCompletosPorId={alunosCompletosPorId} punicoes={punicoes} />
         </>
       )}
     </div>

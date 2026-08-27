@@ -4,16 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-import { Download } from "lucide-react";
+import { Award, BookOpen, CalendarCheck, Download, FileText, ListChecks, Scale } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
 import { calcularStatus } from "@/lib/conduta";
 import {
   Aluno,
   AlunoResumo,
+  AtividadeResumoItem,
   BoletimAluno,
   BoletimAnualAluno,
+  ConteudoAulaRead,
   FaltaRead,
+  FaltaResumoItem,
   LancamentoAlunoRead,
   Punicao,
   RegistroDisciplinar,
@@ -27,6 +30,8 @@ import {
 } from "@/lib/turmaPreferida";
 import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { PageHeader } from "@/components/PageHeader";
+import { BoletimTurmaCard } from "@/components/BoletimTurmaCard";
+import { AtividadesResumoCard } from "@/components/AtividadesResumoCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +39,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +48,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+
+type Aba = "periodo" | "anual" | "frequencia" | "atividades" | "disciplina" | "conteudo";
+
+const ABAS: { value: Aba; label: string; icon: typeof FileText; descricao: string }[] = [
+  { value: "periodo", label: "Boletim do período", icon: FileText, descricao: "Nota final calculada num intervalo de datas, por aluno ou pela turma toda." },
+  { value: "anual", label: "Boletim anual", icon: Award, descricao: "Boletim completo do ano de um aluno, com exportação em PDF." },
+  { value: "frequencia", label: "Frequência", icon: CalendarCheck, descricao: "Faltas registradas no período, por aluno ou pela turma toda." },
+  { value: "atividades", label: "Atividades", icon: ListChecks, descricao: "O que foi lançado e entregue, por aluno, ou o % de conclusão da turma." },
+  { value: "disciplina", label: "Disciplina", icon: Scale, descricao: "Infrações e méritos registrados, por aluno ou pela turma toda." },
+  { value: "conteudo", label: "Conteúdo", icon: BookOpen, descricao: "O que foi lecionado em cada aula da disciplina." },
+];
 
 const ROTULOS_TIPO: Record<TipoAtividade, string> = {
   atividade: "Atividade",
@@ -216,6 +232,79 @@ function gerarPdfBoletim(boletim: BoletimAnualAluno, turma: string) {
   doc.save(`boletim_${boletim.aluno_nome.replace(/\s+/g, "_")}.pdf`);
 }
 
+function FaltasResumoTurmaCard({ resumo }: { resumo: FaltaResumoItem[] }) {
+  const ordenado = [...resumo].sort((a, b) => b.total_faltas - a.total_faltas);
+  return (
+    <Card>
+      <CardHeader className="border-b pb-3">
+        <CardTitle>Faltas da turma no período</CardTitle>
+      </CardHeader>
+      <CardContent className="divide-y">
+        {ordenado.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma falta registrada nessa turma/disciplina.</p>
+        ) : (
+          ordenado.map((r) => (
+            <div key={r.aluno_id} className="py-2 flex items-center justify-between text-sm first:pt-0">
+              <span className="text-foreground">{r.aluno_nome}</span>
+              <span className={`font-semibold ${r.total_faltas >= 5 ? "text-destructive" : "text-muted-foreground"}`}>
+                {r.total_faltas} falta(s)
+              </span>
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DisciplinaTurmaCard({ alunos, punicoes }: { alunos: Aluno[]; punicoes: Punicao[] }) {
+  const ordenado = [...alunos].sort((a, b) => b.pontos_atuais - a.pontos_atuais);
+  return (
+    <Card>
+      <CardHeader className="border-b pb-3">
+        <CardTitle>Disciplina da turma</CardTitle>
+      </CardHeader>
+      <CardContent className="divide-y">
+        {ordenado.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum aluno encontrado nessa turma.</p>
+        ) : (
+          ordenado.map((a) => (
+            <div key={a.id} className="py-2 flex items-center justify-between text-sm first:pt-0">
+              <span className="text-foreground">{a.nome}</span>
+              <div className="flex items-center gap-3">
+                <Badge variant="secondary">{calcularStatus(a.pontos_atuais, punicoes)}</Badge>
+                <span className="font-semibold text-foreground w-16 text-right">{a.pontos_atuais} pts</span>
+              </div>
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ConteudoCard({ conteudos }: { conteudos: ConteudoAulaRead[] }) {
+  return (
+    <Card>
+      <CardHeader className="border-b pb-3">
+        <CardTitle>Conteúdo lecionado</CardTitle>
+      </CardHeader>
+      <CardContent className="divide-y">
+        {conteudos.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum conteúdo registrado no período.</p>
+        ) : (
+          conteudos.map((c) => (
+            <div key={c.id} className="py-2 text-sm first:pt-0">
+              <p className="text-xs text-muted-foreground">{formatarData(c.data)}</p>
+              <p className="text-foreground whitespace-pre-wrap">{c.conteudo}</p>
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ConsultarAlunoContent() {
   const { turmas, disciplinasDaTurma } = useAtribuicoes();
   const [turma, setTurma] = useState("");
@@ -224,17 +313,21 @@ function ConsultarAlunoContent() {
   const [alunoId, setAlunoId] = useState<number | "todos" | "">("");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
+  const [aba, setAba] = useState<Aba>("periodo");
+
   const [lancamentos, setLancamentos] = useState<LancamentoAlunoRead[] | null>(null);
   const [boletim, setBoletim] = useState<BoletimAluno | null>(null);
   const [boletimTurma, setBoletimTurma] = useState<BoletimAluno[] | null>(null);
   const [boletimAnual, setBoletimAnual] = useState<BoletimAnualAluno | null>(null);
   const [carregandoBoletimAnual, setCarregandoBoletimAnual] = useState(false);
   const [faltasDetalhe, setFaltasDetalhe] = useState<FaltaRead[] | null>(null);
+  const [faltasResumoTurma, setFaltasResumoTurma] = useState<FaltaResumoItem[] | null>(null);
+  const [atividadesResumoTurma, setAtividadesResumoTurma] = useState<AtividadeResumoItem[] | null>(null);
   const [registrosDisciplinares, setRegistrosDisciplinares] = useState<RegistroDisciplinar[] | null>(null);
   const [alunoDetalhe, setAlunoDetalhe] = useState<Aluno | null>(null);
   const [alunosTurmaCompletos, setAlunosTurmaCompletos] = useState<Aluno[]>([]);
+  const [conteudos, setConteudos] = useState<ConteudoAulaRead[] | null>(null);
   const [punicoes, setPunicoes] = useState<Punicao[]>([]);
-  const [aba, setAba] = useState<"periodo" | "anual">("periodo");
 
   useEffect(() => {
     api.get<Punicao[]>("/punicoes").then(setPunicoes).catch(() => {});
@@ -285,7 +378,6 @@ function ConsultarAlunoContent() {
 
   useEffect(() => {
     if (!turma) return;
-    setLancamentos(null);
     api
       .get<AlunoResumo[]>(`/faltas/alunos-turma?turma=${encodeURIComponent(turma)}`)
       .then((lista) => {
@@ -311,15 +403,10 @@ function ConsultarAlunoContent() {
     }
   }
 
-  async function consultar() {
+  async function consultarPeriodo() {
     if (!alunoId || !disciplinaId) return;
-    setLancamentos(null);
     setBoletim(null);
     setBoletimTurma(null);
-    setBoletimAnual(null);
-    setFaltasDetalhe(null);
-    setRegistrosDisciplinares(null);
-    setAlunoDetalhe(null);
     try {
       const boletimParams = new URLSearchParams({ turma, disciplina_id: String(disciplinaId) });
       if (dataInicio) boletimParams.set("data_inicio", dataInicio);
@@ -335,38 +422,128 @@ function ConsultarAlunoContent() {
         return;
       }
 
-      const params = new URLSearchParams({ disciplina_id: String(disciplinaId) });
-      if (dataInicio) params.set("data_inicio", dataInicio);
-      if (dataFim) params.set("data_fim", dataFim);
       boletimParams.set("aluno_id", String(alunoId));
-
-      const [lista, boletins, faltas, registros, alunoCompleto] = await Promise.all([
-        api.get<LancamentoAlunoRead[]>(`/alunos/${alunoId}/lancamentos?${params.toString()}`),
-        api.get<BoletimAluno[]>(`/boletim?${boletimParams.toString()}`),
-        api.get<FaltaRead[]>(`/faltas?aluno_id=${alunoId}&disciplina_id=${disciplinaId}`),
-        api.get<RegistroDisciplinar[]>(`/registros?aluno_id=${alunoId}`),
-        api.get<Aluno>(`/alunos/${alunoId}`),
-      ]);
-      setLancamentos(lista);
+      const boletins = await api.get<BoletimAluno[]>(`/boletim?${boletimParams.toString()}`);
       setBoletim(boletins[0] ?? null);
-      setFaltasDetalhe(faltas.filter((f) => (!dataInicio || f.data >= dataInicio) && (!dataFim || f.data <= dataFim)));
-      setRegistrosDisciplinares(registros);
-      setAlunoDetalhe(alunoCompleto);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erro ao consultar lançamentos");
+      toast.error(err instanceof ApiError ? err.message : "Erro ao consultar boletim");
     }
   }
 
+  async function consultarFrequencia() {
+    if (!alunoId || !disciplinaId) return;
+    setFaltasDetalhe(null);
+    setFaltasResumoTurma(null);
+    setAlunoDetalhe(null);
+    try {
+      if (alunoId === "todos") {
+        const resumo = await api.get<FaltaResumoItem[]>(
+          `/faltas/resumo?disciplina_id=${disciplinaId}&turma=${encodeURIComponent(turma)}`
+        );
+        setFaltasResumoTurma(resumo);
+        return;
+      }
+      const [faltas, alunoCompleto] = await Promise.all([
+        api.get<FaltaRead[]>(`/faltas?aluno_id=${alunoId}&disciplina_id=${disciplinaId}`),
+        api.get<Aluno>(`/alunos/${alunoId}`),
+      ]);
+      setFaltasDetalhe(faltas.filter((f) => (!dataInicio || f.data >= dataInicio) && (!dataFim || f.data <= dataFim)));
+      setAlunoDetalhe(alunoCompleto);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao consultar faltas");
+    }
+  }
+
+  async function consultarAtividades() {
+    if (!alunoId || !disciplinaId) return;
+    setLancamentos(null);
+    setAtividadesResumoTurma(null);
+    try {
+      if (alunoId === "todos") {
+        const resumo = await api.get<AtividadeResumoItem[]>(
+          `/atividades/resumo?turma=${encodeURIComponent(turma)}&disciplina_id=${disciplinaId}`
+        );
+        setAtividadesResumoTurma(resumo);
+        return;
+      }
+      const params = new URLSearchParams({ disciplina_id: String(disciplinaId) });
+      if (dataInicio) params.set("data_inicio", dataInicio);
+      if (dataFim) params.set("data_fim", dataFim);
+      const lista = await api.get<LancamentoAlunoRead[]>(`/alunos/${alunoId}/lancamentos?${params.toString()}`);
+      setLancamentos(lista);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao consultar atividades");
+    }
+  }
+
+  async function consultarDisciplina() {
+    if (!alunoId) return;
+    setRegistrosDisciplinares(null);
+    setAlunoDetalhe(null);
+    try {
+      if (alunoId === "todos") {
+        const todosAlunos = await api.get<Aluno[]>("/alunos");
+        setAlunosTurmaCompletos(todosAlunos.filter((a) => a.turma === turma));
+        return;
+      }
+      const [registros, alunoCompleto] = await Promise.all([
+        api.get<RegistroDisciplinar[]>(`/registros?aluno_id=${alunoId}`),
+        api.get<Aluno>(`/alunos/${alunoId}`),
+      ]);
+      setRegistrosDisciplinares(registros);
+      setAlunoDetalhe(alunoCompleto);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao consultar disciplina");
+    }
+  }
+
+  async function consultarConteudo() {
+    if (!disciplinaId) return;
+    setConteudos(null);
+    try {
+      const lista = await api.get<ConteudoAulaRead[]>(
+        `/faltas/conteudo?turma=${encodeURIComponent(turma)}&disciplina_id=${disciplinaId}`
+      );
+      setConteudos(lista.filter((c) => (!dataInicio || c.data >= dataInicio) && (!dataFim || c.data <= dataFim)));
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao consultar conteúdo");
+    }
+  }
+
+  function consultar() {
+    if (aba === "periodo") return consultarPeriodo();
+    if (aba === "frequencia") return consultarFrequencia();
+    if (aba === "atividades") return consultarAtividades();
+    if (aba === "disciplina") return consultarDisciplina();
+    if (aba === "conteudo") return consultarConteudo();
+  }
+
+  const mostrarDisciplina = aba !== "anual" && aba !== "disciplina";
+  const mostrarAluno = aba !== "conteudo";
+  const mostrarPeriodo = aba === "periodo" || aba === "frequencia" || aba === "atividades" || aba === "conteudo";
+  const consultarDesabilitado =
+    aba === "conteudo" ? !disciplinaId : aba === "disciplina" ? !alunoId : !alunoId || !disciplinaId;
+
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-4">
-      <PageHeader
-        title="Consultas"
-        subtitle="Veja, em um período, quais atividades foram lançadas, o que o aluno entregou, faltas e a nota final calculada."
-      />
+    <div className="max-w-6xl mx-auto p-6 space-y-4">
+      <PageHeader title="Consultas" subtitle="Escolha o que você quer consultar." />
+
+      <Tabs value={aba} onValueChange={(v) => v && setAba(v as Aba)}>
+        <TabsList>
+          {ABAS.map(({ value, label, icon: Icon }) => (
+            <TabsTrigger key={value} value={value}>
+              <Icon />
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      <p className="text-sm text-muted-foreground -mt-2">{ABAS.find((a) => a.value === aba)?.descricao}</p>
 
       <Card>
         <CardContent className="space-y-4">
-          <div className="grid sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div className="space-y-1">
               <Label>Turma</Label>
               <Select value={turma} onValueChange={(v) => v && selecionarTurma(v)}>
@@ -383,73 +560,65 @@ function ConsultarAlunoContent() {
               </Select>
             </div>
 
-            <div className="space-y-1">
-              <Label>Aluno</Label>
-              <Select value={String(alunoId)} onValueChange={(v) => selecionarAluno(v ?? "")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(v: string) => {
-                      if (!v) return "Selecione...";
-                      if (v === "todos") return "Todos os alunos da turma";
-                      return alunos.find((a) => String(a.id) === v)?.nome ?? "Selecione...";
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os alunos da turma</SelectItem>
-                  {alunos.map((a) => (
-                    <SelectItem key={a.id} value={String(a.id)}>
-                      {a.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            {mostrarDisciplina && (
+              <div className="space-y-1">
+                <Label>Disciplina</Label>
+                <Select value={disciplinaId ? String(disciplinaId) : ""} onValueChange={(v) => v && selecionarDisciplina(Number(v))}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(v: string) => (v ? disciplinasDisponiveis.find((d) => String(d.disciplina_id) === v)?.disciplina_nome : "Disciplina")}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {disciplinasDisponiveis.map((d) => (
+                      <SelectItem key={d.disciplina_id} value={String(d.disciplina_id)}>
+                        {d.disciplina_nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-          <Tabs value={aba} onValueChange={(v) => v && setAba(v as "periodo" | "anual")}>
-            <TabsList>
-              <TabsTrigger value="periodo">Boletim do período</TabsTrigger>
-              <TabsTrigger value="anual">Boletim anual</TabsTrigger>
-            </TabsList>
+            {mostrarAluno && (
+              <div className="space-y-1">
+                <Label>Aluno</Label>
+                <Select value={String(alunoId)} onValueChange={(v) => selecionarAluno(v ?? "")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(v: string) => {
+                        if (!v) return "Selecione...";
+                        if (v === "todos") return "Todos os alunos da turma";
+                        return alunos.find((a) => String(a.id) === v)?.nome ?? "Selecione...";
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os alunos da turma</SelectItem>
+                    {alunos.map((a) => (
+                      <SelectItem key={a.id} value={String(a.id)}>
+                        {a.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-            <TabsContent value="periodo">
-              <div className="grid sm:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <Label>Disciplina</Label>
-                  <Select value={disciplinaId ? String(disciplinaId) : ""} onValueChange={(v) => v && selecionarDisciplina(Number(v))}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {(v: string) => (v ? disciplinasDisponiveis.find((d) => String(d.disciplina_id) === v)?.disciplina_nome : "Disciplina")}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {disciplinasDisponiveis.map((d) => (
-                        <SelectItem key={d.disciplina_id} value={String(d.disciplina_id)}>
-                          {d.disciplina_nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <Label>Período de</Label>
-                  <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
-                </div>
-
-                <div className="space-y-1">
-                  <Label>até</Label>
-                  <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
+            {mostrarPeriodo && (
+              <div className="space-y-1 lg:col-span-2">
+                <Label>Período</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="flex-1 min-w-[150px]" />
+                  <span className="text-xs text-muted-foreground shrink-0">até</span>
+                  <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="flex-1 min-w-[150px]" />
                 </div>
               </div>
+            )}
+          </div>
 
-              <Button onClick={consultar} disabled={!alunoId || !disciplinaId}>
-                Consultar
-              </Button>
-            </TabsContent>
-
-            <TabsContent value="anual">
+          {aba === "anual" ? (
+            <div>
               <Button
                 variant="outline"
                 onClick={verBoletimAnual}
@@ -459,127 +628,90 @@ function ConsultarAlunoContent() {
               </Button>
               {alunoId === "todos" && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  Selecione um aluno específico (não "todos") para ver o boletim anual.
+                  Selecione um aluno específico (não &quot;todos&quot;) para ver o boletim anual.
                 </p>
               )}
-
-              {boletimAnual && (
-                <Card className="mt-4">
-                  <CardHeader className="flex-row items-center justify-between border-b pb-3">
-                    <CardTitle>Boletim anual — {boletimAnual.aluno_nome}</CardTitle>
-                    <Button size="sm" onClick={() => gerarPdfBoletim(boletimAnual, turma)}>
-                      <Download />
-                      Baixar PDF
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {boletimAnual.disciplinas.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        Nenhuma disciplina atribuída a essa turma ainda.
-                      </p>
-                    ) : (
-                      boletimAnual.disciplinas.map((disc) => (
-                        <div key={disc.disciplina_id} className="rounded-lg border">
-                          <div className="px-3 py-2 border-b flex items-center justify-between bg-muted/40 rounded-t-lg">
-                            <span className="text-sm font-semibold text-foreground">{disc.disciplina_nome}</span>
-                            <Badge className={disc.aprovado ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>
-                              {disc.aprovado ? "Aprovado" : "Reprovado"}
-                            </Badge>
-                          </div>
-                          <div className="divide-y">
-                            {disc.trimestres.map((t) => (
-                              <div key={t.trimestre} className="px-3 py-2 flex items-center justify-between gap-4">
-                                <span className="text-sm text-foreground">
-                                  {t.trimestre}º trimestre
-                                  <span className="text-xs text-muted-foreground">
-                                    {" "}
-                                    ({formatarData(t.data_inicio)} a {formatarData(t.data_fim)})
-                                  </span>
-                                </span>
-                                <span className="text-xs text-muted-foreground">{t.total_faltas} falta(s)</span>
-                                <span className="text-sm font-bold text-foreground" title={t.ajuste_motivo ?? undefined}>
-                                  {t.nota_ajustada !== null ? (
-                                    <>
-                                      <span className="text-muted-foreground line-through font-normal">{t.nota_calculada}</span>{" "}
-                                      {t.nota_ajustada}
-                                    </>
-                                  ) : (
-                                    t.nota_calculada
-                                  )}{" "}
-                                  / {t.peso_total}
-                                </span>
-                                <AjusteNotaDialog
-                                  alunoId={boletimAnual.aluno_id}
-                                  disciplinaId={disc.disciplina_id}
-                                  trimestre={t.trimestre}
-                                  ajusteAtual={
-                                    t.ajuste_id !== null
-                                      ? { id: t.ajuste_id, nota_ajustada: t.nota_ajustada as number, motivo: t.ajuste_motivo }
-                                      : null
-                                  }
-                                  onSalvo={verBoletimAnual}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                          <div className="px-3 py-2 border-t flex items-center justify-between">
-                            <span className="text-sm font-semibold text-foreground">Média final: {disc.media_final}</span>
-                            <span className="text-sm text-muted-foreground">{disc.total_faltas} falta(s) no ano</span>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-          </Tabs>
+            </div>
+          ) : (
+            <Button onClick={consultar} disabled={consultarDesabilitado}>
+              Consultar
+            </Button>
+          )}
         </CardContent>
       </Card>
 
-      {aba === "periodo" && boletimTurma && (
+      {aba === "anual" && boletimAnual && (
         <Card>
-          <CardHeader className="border-b pb-3">
-            <CardTitle>Boletim da turma — nota final do período</CardTitle>
+          <CardHeader className="flex-row items-center justify-between border-b pb-3">
+            <CardTitle>Boletim anual — {boletimAnual.aluno_nome}</CardTitle>
+            <Button size="sm" onClick={() => gerarPdfBoletim(boletimAnual, turma)}>
+              <Download />
+              Baixar PDF
+            </Button>
           </CardHeader>
-          <CardContent className="divide-y">
-            {boletimTurma.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum aluno encontrado nessa turma.</p>
+          <CardContent className="space-y-4">
+            {boletimAnual.disciplinas.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma disciplina atribuída a essa turma ainda.
+              </p>
             ) : (
-              boletimTurma.map((b) => {
-                const alunoCompleto = alunosCompletosPorId.get(b.aluno_id);
-                return (
-                  <div key={b.aluno_id} className="py-3 flex items-center justify-between gap-4 first:pt-0">
-                    <div className="w-40 shrink-0 space-y-1">
-                      <span className="text-sm text-foreground truncate block">{b.aluno_nome}</span>
-                      {alunoCompleto && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          {calcularStatus(alunoCompleto.pontos_atuais, punicoes)}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex-1 flex flex-wrap gap-2">
-                      {b.grupos.map((g) => (
-                        <span key={g.categoria} className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
-                          {g.categoria} (peso {g.peso}): {g.pontos} pts
-                        </span>
-                      ))}
-                    </div>
-                    <span className="text-xs text-muted-foreground w-20 text-right">{b.total_faltas} falta(s)</span>
-                    {b.peso_total > 0 && (
-                      <Badge className={b.nota_final >= 6 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>
-                        {b.nota_final >= 6 ? "Aprovado" : "Reprovado"}
-                      </Badge>
-                    )}
-                    <span className="text-sm font-bold text-foreground w-24 text-right">
-                      {b.nota_final} / {b.peso_total}
-                    </span>
+              boletimAnual.disciplinas.map((disc) => (
+                <div key={disc.disciplina_id} className="rounded-lg border">
+                  <div className="px-3 py-2 border-b flex items-center justify-between bg-muted/40 rounded-t-lg">
+                    <span className="text-sm font-semibold text-foreground">{disc.disciplina_nome}</span>
+                    <Badge className={disc.aprovado ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>
+                      {disc.aprovado ? "Aprovado" : "Reprovado"}
+                    </Badge>
                   </div>
-                );
-              })
+                  <div className="divide-y">
+                    {disc.trimestres.map((t) => (
+                      <div key={t.trimestre} className="px-3 py-2 flex items-center justify-between gap-4">
+                        <span className="text-sm text-foreground">
+                          {t.trimestre}º trimestre
+                          <span className="text-xs text-muted-foreground">
+                            {" "}
+                            ({formatarData(t.data_inicio)} a {formatarData(t.data_fim)})
+                          </span>
+                        </span>
+                        <span className="text-xs text-muted-foreground">{t.total_faltas} falta(s)</span>
+                        <span className="text-sm font-bold text-foreground" title={t.ajuste_motivo ?? undefined}>
+                          {t.nota_ajustada !== null ? (
+                            <>
+                              <span className="text-muted-foreground line-through font-normal">{t.nota_calculada}</span>{" "}
+                              {t.nota_ajustada}
+                            </>
+                          ) : (
+                            t.nota_calculada
+                          )}{" "}
+                          / {t.peso_total}
+                        </span>
+                        <AjusteNotaDialog
+                          alunoId={boletimAnual.aluno_id}
+                          disciplinaId={disc.disciplina_id}
+                          trimestre={t.trimestre}
+                          ajusteAtual={
+                            t.ajuste_id !== null
+                              ? { id: t.ajuste_id, nota_ajustada: t.nota_ajustada as number, motivo: t.ajuste_motivo }
+                              : null
+                          }
+                          onSalvo={verBoletimAnual}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="px-3 py-2 border-t flex items-center justify-between">
+                    <span className="text-sm font-semibold text-foreground">Média final: {disc.media_final}</span>
+                    <span className="text-sm text-muted-foreground">{disc.total_faltas} falta(s) no ano</span>
+                  </div>
+                </div>
+              ))
             )}
           </CardContent>
         </Card>
+      )}
+
+      {aba === "periodo" && boletimTurma && (
+        <BoletimTurmaCard boletim={boletimTurma} alunosCompletosPorId={alunosCompletosPorId} punicoes={punicoes} />
       )}
 
       {aba === "periodo" && boletim && (
@@ -606,7 +738,9 @@ function ConsultarAlunoContent() {
         </Card>
       )}
 
-      {aba === "periodo" && alunoDetalhe && (
+      {aba === "frequencia" && faltasResumoTurma && <FaltasResumoTurmaCard resumo={faltasResumoTurma} />}
+
+      {aba === "frequencia" && alunoDetalhe && (
         <Card>
           <CardHeader className="flex-row items-center justify-between border-b pb-3">
             <CardTitle>Faltas no período</CardTitle>
@@ -633,7 +767,47 @@ function ConsultarAlunoContent() {
         </Card>
       )}
 
-      {aba === "periodo" && alunoDetalhe && (
+      {aba === "atividades" && atividadesResumoTurma && <AtividadesResumoCard resumo={atividadesResumoTurma} />}
+
+      {aba === "atividades" && lancamentos !== null && (
+        <Card>
+          {lancamentos.length === 0 ? (
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Nenhum lançamento encontrado para esse aluno no período selecionado.
+              </p>
+            </CardContent>
+          ) : (
+            <ul className="divide-y">
+              {lancamentos.map((l) => (
+                <li key={l.id} className="px-(--card-spacing) py-3 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{l.atividade_titulo}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {ROTULOS_TIPO[l.atividade_tipo]} · lançada em {formatarData(l.atividade_data)}
+                      {l.atividade_data_entrega && <> · entrega até {formatarData(l.atividade_data_entrega)}</>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 text-right">
+                    <span className="text-xs text-muted-foreground">
+                      {l.fez === null ? "não registrado" : l.fez ? "fez" : "não fez"}
+                      {l.entregue_em && <> · entregue em {formatarData(l.entregue_em)}</>}
+                    </span>
+                    <span className="text-sm font-semibold text-foreground w-10 text-right">{l.nota ?? "—"}</span>
+                    <BadgePrazo noPrazo={l.no_prazo} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
+
+      {aba === "disciplina" && alunoId === "todos" && alunosTurmaCompletos.length > 0 && (
+        <DisciplinaTurmaCard alunos={alunosTurmaCompletos} punicoes={punicoes} />
+      )}
+
+      {aba === "disciplina" && alunoDetalhe && (
         <Card>
           <CardHeader className="flex-row items-center justify-between border-b pb-3">
             <CardTitle>Disciplina</CardTitle>
@@ -673,39 +847,7 @@ function ConsultarAlunoContent() {
         </Card>
       )}
 
-      {aba === "periodo" && lancamentos !== null && (
-        <Card>
-          {lancamentos.length === 0 ? (
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Nenhum lançamento encontrado para esse aluno no período selecionado.
-              </p>
-            </CardContent>
-          ) : (
-            <ul className="divide-y">
-              {lancamentos.map((l) => (
-                <li key={l.id} className="px-(--card-spacing) py-3 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{l.atividade_titulo}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {ROTULOS_TIPO[l.atividade_tipo]} · lançada em {formatarData(l.atividade_data)}
-                      {l.atividade_data_entrega && <> · entrega até {formatarData(l.atividade_data_entrega)}</>}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 text-right">
-                    <span className="text-xs text-muted-foreground">
-                      {l.fez === null ? "não registrado" : l.fez ? "fez" : "não fez"}
-                      {l.entregue_em && <> · entregue em {formatarData(l.entregue_em)}</>}
-                    </span>
-                    <span className="text-sm font-semibold text-foreground w-10 text-right">{l.nota ?? "—"}</span>
-                    <BadgePrazo noPrazo={l.no_prazo} />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      )}
+      {aba === "conteudo" && conteudos && <ConteudoCard conteudos={conteudos} />}
     </div>
   );
 }
