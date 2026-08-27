@@ -1,13 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
 import { Download } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
-import { AlunoResumo, BoletimAluno, BoletimAnualAluno, LancamentoAlunoRead, TipoAtividade } from "@/lib/types";
+import { calcularStatus } from "@/lib/conduta";
+import {
+  Aluno,
+  AlunoResumo,
+  BoletimAluno,
+  BoletimAnualAluno,
+  FaltaRead,
+  LancamentoAlunoRead,
+  Punicao,
+  RegistroDisciplinar,
+  TipoAtividade,
+} from "@/lib/types";
 import {
   escolherDisciplinaInicial,
   escolherTurmaInicial,
@@ -23,6 +34,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -217,6 +229,21 @@ function ConsultarAlunoContent() {
   const [boletimTurma, setBoletimTurma] = useState<BoletimAluno[] | null>(null);
   const [boletimAnual, setBoletimAnual] = useState<BoletimAnualAluno | null>(null);
   const [carregandoBoletimAnual, setCarregandoBoletimAnual] = useState(false);
+  const [faltasDetalhe, setFaltasDetalhe] = useState<FaltaRead[] | null>(null);
+  const [registrosDisciplinares, setRegistrosDisciplinares] = useState<RegistroDisciplinar[] | null>(null);
+  const [alunoDetalhe, setAlunoDetalhe] = useState<Aluno | null>(null);
+  const [alunosTurmaCompletos, setAlunosTurmaCompletos] = useState<Aluno[]>([]);
+  const [punicoes, setPunicoes] = useState<Punicao[]>([]);
+  const [aba, setAba] = useState<"periodo" | "anual">("periodo");
+
+  useEffect(() => {
+    api.get<Punicao[]>("/punicoes").then(setPunicoes).catch(() => {});
+  }, []);
+
+  const alunosCompletosPorId = useMemo(
+    () => new Map(alunosTurmaCompletos.map((a) => [a.id, a])),
+    [alunosTurmaCompletos]
+  );
 
   useEffect(() => {
     if (turmas.length === 0) return;
@@ -290,14 +317,21 @@ function ConsultarAlunoContent() {
     setBoletim(null);
     setBoletimTurma(null);
     setBoletimAnual(null);
+    setFaltasDetalhe(null);
+    setRegistrosDisciplinares(null);
+    setAlunoDetalhe(null);
     try {
       const boletimParams = new URLSearchParams({ turma, disciplina_id: String(disciplinaId) });
       if (dataInicio) boletimParams.set("data_inicio", dataInicio);
       if (dataFim) boletimParams.set("data_fim", dataFim);
 
       if (alunoId === "todos") {
-        const boletins = await api.get<BoletimAluno[]>(`/boletim?${boletimParams.toString()}`);
+        const [boletins, todosAlunos] = await Promise.all([
+          api.get<BoletimAluno[]>(`/boletim?${boletimParams.toString()}`),
+          api.get<Aluno[]>("/alunos"),
+        ]);
         setBoletimTurma(boletins);
+        setAlunosTurmaCompletos(todosAlunos);
         return;
       }
 
@@ -306,12 +340,18 @@ function ConsultarAlunoContent() {
       if (dataFim) params.set("data_fim", dataFim);
       boletimParams.set("aluno_id", String(alunoId));
 
-      const [lista, boletins] = await Promise.all([
+      const [lista, boletins, faltas, registros, alunoCompleto] = await Promise.all([
         api.get<LancamentoAlunoRead[]>(`/alunos/${alunoId}/lancamentos?${params.toString()}`),
         api.get<BoletimAluno[]>(`/boletim?${boletimParams.toString()}`),
+        api.get<FaltaRead[]>(`/faltas?aluno_id=${alunoId}&disciplina_id=${disciplinaId}`),
+        api.get<RegistroDisciplinar[]>(`/registros?aluno_id=${alunoId}`),
+        api.get<Aluno>(`/alunos/${alunoId}`),
       ]);
       setLancamentos(lista);
       setBoletim(boletins[0] ?? null);
+      setFaltasDetalhe(faltas.filter((f) => (!dataInicio || f.data >= dataInicio) && (!dataFim || f.data <= dataFim)));
+      setRegistrosDisciplinares(registros);
+      setAlunoDetalhe(alunoCompleto);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erro ao consultar lançamentos");
     }
@@ -325,160 +365,179 @@ function ConsultarAlunoContent() {
       />
 
       <Card>
-        <CardContent className="grid sm:grid-cols-5 gap-3 items-end">
-          <div className="space-y-1">
-            <Label>Turma</Label>
-            <Select value={turma} onValueChange={(v) => v && selecionarTurma(v)}>
-              <SelectTrigger className="w-full">
-                <SelectValue>{(v: string) => (v ? `Turma ${v}` : "Turma")}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {turmas.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    Turma {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <CardContent className="space-y-4">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Turma</Label>
+              <Select value={turma} onValueChange={(v) => v && selecionarTurma(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>{(v: string) => (v ? `Turma ${v}` : "Turma")}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {turmas.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      Turma {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Aluno</Label>
+              <Select value={String(alunoId)} onValueChange={(v) => selecionarAluno(v ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(v: string) => {
+                      if (!v) return "Selecione...";
+                      if (v === "todos") return "Todos os alunos da turma";
+                      return alunos.find((a) => String(a.id) === v)?.nome ?? "Selecione...";
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os alunos da turma</SelectItem>
+                  {alunos.map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)}>
+                      {a.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="space-y-1">
-            <Label>Disciplina</Label>
-            <Select value={disciplinaId ? String(disciplinaId) : ""} onValueChange={(v) => v && selecionarDisciplina(Number(v))}>
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {(v: string) => (v ? disciplinasDisponiveis.find((d) => String(d.disciplina_id) === v)?.disciplina_nome : "Disciplina")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {disciplinasDisponiveis.map((d) => (
-                  <SelectItem key={d.disciplina_id} value={String(d.disciplina_id)}>
-                    {d.disciplina_nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Tabs value={aba} onValueChange={(v) => v && setAba(v as "periodo" | "anual")}>
+            <TabsList>
+              <TabsTrigger value="periodo">Boletim do período</TabsTrigger>
+              <TabsTrigger value="anual">Boletim anual</TabsTrigger>
+            </TabsList>
 
-          <div className="space-y-1">
-            <Label>Aluno</Label>
-            <Select value={String(alunoId)} onValueChange={(v) => selecionarAluno(v ?? "")}>
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {(v: string) => {
-                    if (!v) return "Selecione...";
-                    if (v === "todos") return "Todos os alunos da turma";
-                    return alunos.find((a) => String(a.id) === v)?.nome ?? "Selecione...";
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os alunos da turma</SelectItem>
-                {alunos.map((a) => (
-                  <SelectItem key={a.id} value={String(a.id)}>
-                    {a.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <TabsContent value="periodo">
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label>Disciplina</Label>
+                  <Select value={disciplinaId ? String(disciplinaId) : ""} onValueChange={(v) => v && selecionarDisciplina(Number(v))}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {(v: string) => (v ? disciplinasDisponiveis.find((d) => String(d.disciplina_id) === v)?.disciplina_nome : "Disciplina")}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {disciplinasDisponiveis.map((d) => (
+                        <SelectItem key={d.disciplina_id} value={String(d.disciplina_id)}>
+                          {d.disciplina_nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-          <div className="space-y-1">
-            <Label>Período de</Label>
-            <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
-          </div>
+                <div className="space-y-1">
+                  <Label>Período de</Label>
+                  <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
+                </div>
 
-          <div className="space-y-1">
-            <Label>até</Label>
-            <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
-          </div>
+                <div className="space-y-1">
+                  <Label>até</Label>
+                  <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
+                </div>
+              </div>
 
-          <div className="sm:col-span-5 flex gap-2">
-            <Button onClick={consultar} disabled={!alunoId || !disciplinaId}>
-              Consultar
-            </Button>
-            <Button
-              variant="outline"
-              onClick={verBoletimAnual}
-              disabled={!alunoId || alunoId === "todos" || carregandoBoletimAnual}
-            >
-              {carregandoBoletimAnual ? "Gerando..." : "Ver boletim anual"}
-            </Button>
-          </div>
+              <Button onClick={consultar} disabled={!alunoId || !disciplinaId}>
+                Consultar
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="anual">
+              <Button
+                variant="outline"
+                onClick={verBoletimAnual}
+                disabled={!alunoId || alunoId === "todos" || carregandoBoletimAnual}
+              >
+                {carregandoBoletimAnual ? "Gerando..." : "Ver boletim anual"}
+              </Button>
+              {alunoId === "todos" && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Selecione um aluno específico (não "todos") para ver o boletim anual.
+                </p>
+              )}
+
+              {boletimAnual && (
+                <Card className="mt-4">
+                  <CardHeader className="flex-row items-center justify-between border-b pb-3">
+                    <CardTitle>Boletim anual — {boletimAnual.aluno_nome}</CardTitle>
+                    <Button size="sm" onClick={() => gerarPdfBoletim(boletimAnual, turma)}>
+                      <Download />
+                      Baixar PDF
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {boletimAnual.disciplinas.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Nenhuma disciplina atribuída a essa turma ainda.
+                      </p>
+                    ) : (
+                      boletimAnual.disciplinas.map((disc) => (
+                        <div key={disc.disciplina_id} className="rounded-lg border">
+                          <div className="px-3 py-2 border-b flex items-center justify-between bg-muted/40 rounded-t-lg">
+                            <span className="text-sm font-semibold text-foreground">{disc.disciplina_nome}</span>
+                            <Badge className={disc.aprovado ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>
+                              {disc.aprovado ? "Aprovado" : "Reprovado"}
+                            </Badge>
+                          </div>
+                          <div className="divide-y">
+                            {disc.trimestres.map((t) => (
+                              <div key={t.trimestre} className="px-3 py-2 flex items-center justify-between gap-4">
+                                <span className="text-sm text-foreground">
+                                  {t.trimestre}º trimestre
+                                  <span className="text-xs text-muted-foreground">
+                                    {" "}
+                                    ({formatarData(t.data_inicio)} a {formatarData(t.data_fim)})
+                                  </span>
+                                </span>
+                                <span className="text-xs text-muted-foreground">{t.total_faltas} falta(s)</span>
+                                <span className="text-sm font-bold text-foreground" title={t.ajuste_motivo ?? undefined}>
+                                  {t.nota_ajustada !== null ? (
+                                    <>
+                                      <span className="text-muted-foreground line-through font-normal">{t.nota_calculada}</span>{" "}
+                                      {t.nota_ajustada}
+                                    </>
+                                  ) : (
+                                    t.nota_calculada
+                                  )}{" "}
+                                  / {t.peso_total}
+                                </span>
+                                <AjusteNotaDialog
+                                  alunoId={boletimAnual.aluno_id}
+                                  disciplinaId={disc.disciplina_id}
+                                  trimestre={t.trimestre}
+                                  ajusteAtual={
+                                    t.ajuste_id !== null
+                                      ? { id: t.ajuste_id, nota_ajustada: t.nota_ajustada as number, motivo: t.ajuste_motivo }
+                                      : null
+                                  }
+                                  onSalvo={verBoletimAnual}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="px-3 py-2 border-t flex items-center justify-between">
+                            <span className="text-sm font-semibold text-foreground">Média final: {disc.media_final}</span>
+                            <span className="text-sm text-muted-foreground">{disc.total_faltas} falta(s) no ano</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
-      {boletimAnual && (
-        <Card>
-          <CardHeader className="flex-row items-center justify-between border-b pb-3">
-            <CardTitle>Boletim anual — {boletimAnual.aluno_nome}</CardTitle>
-            <Button size="sm" onClick={() => gerarPdfBoletim(boletimAnual, turma)}>
-              <Download />
-              Baixar PDF
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {boletimAnual.disciplinas.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nenhuma disciplina atribuída a essa turma ainda.
-              </p>
-            ) : (
-              boletimAnual.disciplinas.map((disc) => (
-                <div key={disc.disciplina_id} className="rounded-lg border">
-                  <div className="px-3 py-2 border-b flex items-center justify-between bg-muted/40 rounded-t-lg">
-                    <span className="text-sm font-semibold text-foreground">{disc.disciplina_nome}</span>
-                    <Badge className={disc.aprovado ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>
-                      {disc.aprovado ? "Aprovado" : "Reprovado"}
-                    </Badge>
-                  </div>
-                  <div className="divide-y">
-                    {disc.trimestres.map((t) => (
-                      <div key={t.trimestre} className="px-3 py-2 flex items-center justify-between gap-4">
-                        <span className="text-sm text-foreground">
-                          {t.trimestre}º trimestre
-                          <span className="text-xs text-muted-foreground">
-                            {" "}
-                            ({formatarData(t.data_inicio)} a {formatarData(t.data_fim)})
-                          </span>
-                        </span>
-                        <span className="text-xs text-muted-foreground">{t.total_faltas} falta(s)</span>
-                        <span className="text-sm font-bold text-foreground" title={t.ajuste_motivo ?? undefined}>
-                          {t.nota_ajustada !== null ? (
-                            <>
-                              <span className="text-muted-foreground line-through font-normal">{t.nota_calculada}</span>{" "}
-                              {t.nota_ajustada}
-                            </>
-                          ) : (
-                            t.nota_calculada
-                          )}{" "}
-                          / {t.peso_total}
-                        </span>
-                        <AjusteNotaDialog
-                          alunoId={boletimAnual.aluno_id}
-                          disciplinaId={disc.disciplina_id}
-                          trimestre={t.trimestre}
-                          ajusteAtual={
-                            t.ajuste_id !== null
-                              ? { id: t.ajuste_id, nota_ajustada: t.nota_ajustada as number, motivo: t.ajuste_motivo }
-                              : null
-                          }
-                          onSalvo={verBoletimAnual}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="px-3 py-2 border-t flex items-center justify-between">
-                    <span className="text-sm font-semibold text-foreground">Média final: {disc.media_final}</span>
-                    <span className="text-sm text-muted-foreground">{disc.total_faltas} falta(s) no ano</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {boletimTurma && (
+      {aba === "periodo" && boletimTurma && (
         <Card>
           <CardHeader className="border-b pb-3">
             <CardTitle>Boletim da turma — nota final do período</CardTitle>
@@ -487,28 +546,43 @@ function ConsultarAlunoContent() {
             {boletimTurma.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhum aluno encontrado nessa turma.</p>
             ) : (
-              boletimTurma.map((b) => (
-                <div key={b.aluno_id} className="py-3 flex items-center justify-between gap-4 first:pt-0">
-                  <span className="text-sm text-foreground w-40 truncate">{b.aluno_nome}</span>
-                  <div className="flex-1 flex flex-wrap gap-2">
-                    {b.grupos.map((g) => (
-                      <span key={g.categoria} className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
-                        {g.categoria} (peso {g.peso}): {g.pontos} pts
-                      </span>
-                    ))}
+              boletimTurma.map((b) => {
+                const alunoCompleto = alunosCompletosPorId.get(b.aluno_id);
+                return (
+                  <div key={b.aluno_id} className="py-3 flex items-center justify-between gap-4 first:pt-0">
+                    <div className="w-40 shrink-0 space-y-1">
+                      <span className="text-sm text-foreground truncate block">{b.aluno_nome}</span>
+                      {alunoCompleto && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {calcularStatus(alunoCompleto.pontos_atuais, punicoes)}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex-1 flex flex-wrap gap-2">
+                      {b.grupos.map((g) => (
+                        <span key={g.categoria} className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+                          {g.categoria} (peso {g.peso}): {g.pontos} pts
+                        </span>
+                      ))}
+                    </div>
+                    <span className="text-xs text-muted-foreground w-20 text-right">{b.total_faltas} falta(s)</span>
+                    {b.peso_total > 0 && (
+                      <Badge className={b.nota_final >= 6 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>
+                        {b.nota_final >= 6 ? "Aprovado" : "Reprovado"}
+                      </Badge>
+                    )}
+                    <span className="text-sm font-bold text-foreground w-24 text-right">
+                      {b.nota_final} / {b.peso_total}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground w-20 text-right">{b.total_faltas} falta(s)</span>
-                  <span className="text-sm font-bold text-foreground w-24 text-right">
-                    {b.nota_final} / {b.peso_total}
-                  </span>
-                </div>
-              ))
+                );
+              })
             )}
           </CardContent>
         </Card>
       )}
 
-      {boletim && (
+      {aba === "periodo" && boletim && (
         <Card>
           <CardHeader className="flex-row items-center justify-between border-b pb-3">
             <CardTitle>Boletim do período</CardTitle>
@@ -532,7 +606,74 @@ function ConsultarAlunoContent() {
         </Card>
       )}
 
-      {lancamentos !== null && (
+      {aba === "periodo" && alunoDetalhe && (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between border-b pb-3">
+            <CardTitle>Faltas no período</CardTitle>
+            <span className="text-xs text-muted-foreground">{faltasDetalhe?.length ?? 0} falta(s)</span>
+          </CardHeader>
+          <CardContent className="divide-y">
+            {faltasDetalhe === null ? (
+              <p className="text-sm text-muted-foreground">Carregando...</p>
+            ) : faltasDetalhe.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma falta registrada no período.</p>
+            ) : (
+              [...faltasDetalhe]
+                .sort((a, b) => (a.data < b.data ? 1 : -1))
+                .map((f) => (
+                  <div key={f.id} className="py-2 flex items-center justify-between text-sm first:pt-0">
+                    <span className="text-foreground">{formatarData(f.data)}</span>
+                    <Badge className={f.justificada ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>
+                      {f.justificada ? "justificada" : "não justificada"}
+                    </Badge>
+                  </div>
+                ))
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {aba === "periodo" && alunoDetalhe && (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between border-b pb-3">
+            <CardTitle>Disciplina</CardTitle>
+            <div className="flex items-center gap-3">
+              <Badge variant="secondary">{calcularStatus(alunoDetalhe.pontos_atuais, punicoes)}</Badge>
+              <span className="text-sm font-bold text-foreground">{alunoDetalhe.pontos_atuais} pontos</span>
+            </div>
+          </CardHeader>
+          <CardContent className="divide-y">
+            {registrosDisciplinares === null ? (
+              <p className="text-sm text-muted-foreground">Carregando...</p>
+            ) : registrosDisciplinares.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma infração ou mérito registrado.</p>
+            ) : (
+              registrosDisciplinares.map((r) => (
+                <div key={r.id} className="py-2 flex items-center justify-between gap-3 text-sm first:pt-0">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={r.tipo === "infracao" ? "destructive" : "secondary"}>
+                        {r.tipo === "infracao" ? "Infração" : "Mérito"}
+                      </Badge>
+                      <span className="font-medium text-foreground">{r.descricao}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {new Date(r.data_hora).toLocaleString("pt-BR")}
+                      {r.professor_nome ? ` — Professor(a): ${r.professor_nome}` : ""}
+                      {r.observacao ? ` — ${r.observacao}` : ""}
+                    </p>
+                  </div>
+                  <span className={`font-semibold shrink-0 ${r.peso >= 0 ? "text-destructive" : "text-emerald-600"}`}>
+                    {r.peso >= 0 ? `+${r.peso}` : r.peso}
+                  </span>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {aba === "periodo" && lancamentos !== null && (
         <Card>
           {lancamentos.length === 0 ? (
             <CardContent>
