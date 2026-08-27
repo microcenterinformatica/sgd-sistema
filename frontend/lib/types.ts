@@ -62,6 +62,26 @@ export interface RegistroDisciplinar {
   professor_nome: string | null;
 }
 
+export interface AlunoAlerta {
+  aluno_id: number;
+  aluno_nome: string;
+  turma: string | null;
+  pontos_atuais: number;
+  punicao_atual: string | null;
+  proxima_punicao: string | null;
+  pontos_faltantes: number | null;
+}
+
+export interface PainelResumo {
+  escopo: "total" | "turmas";
+  turmas: string[];
+  total_alunos: number;
+  ocorrencias_mes: number;
+  pontos_merito_mes: number;
+  alunos_alerta: AlunoAlerta[];
+  recentes: (RegistroDisciplinar & { aluno_nome: string })[];
+}
+
 export interface RegistroDisciplinarResponse {
   registro: RegistroDisciplinar;
   pontos_atuais: number;

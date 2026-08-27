@@ -36,6 +36,27 @@ def combinacoes_permitidas(session: Session, usuario_atual: Usuario) -> list[tup
     return [(a.turma, a.disciplina_id) for a in atribuicoes]
 
 
+def turmas_permitidas(session: Session, usuario_atual: Usuario) -> list[str] | None:
+    """Retorna None quando o usuário tem acesso total (admin/coordenação).
+    Caso contrário, retorna a lista (sem duplicatas) de turmas do professor,
+    ignorando a disciplina — usado onde a permissão só depende da turma."""
+    permitidas = combinacoes_permitidas(session, usuario_atual)
+    if permitidas is None:
+        return None
+    return sorted({turma for turma, _ in permitidas})
+
+
+def verificar_permissao_turma(session: Session, usuario_atual: Usuario, turma: str | None) -> None:
+    turmas = turmas_permitidas(session, usuario_atual)
+    if turmas is None:
+        return
+    if turma is None or turma not in turmas:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não tem permissão para registrar ocorrências para esta turma.",
+        )
+
+
 def verificar_permissao_turma_disciplina(
     session: Session, usuario_atual: Usuario, turma: str, disciplina_id: int
 ) -> None:

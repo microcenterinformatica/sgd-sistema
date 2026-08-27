@@ -6,6 +6,8 @@ import { ArrowUpDown } from "lucide-react";
 import { ColumnDef } from "@tanstack/react-table";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { Aluno } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -71,9 +73,13 @@ const columns: ColumnDef<Aluno>[] = [
 ];
 
 function AlunosContent() {
+  const { user } = useAuth();
+  const { dados: atribuicoes, turmas: turmasDoProfessor } = useAtribuicoes();
   const [alunos, setAlunos] = useState<Aluno[] | null>(null);
   const [turmaFiltro, setTurmaFiltro] = useState("todas");
   const [erro, setErro] = useState<string | null>(null);
+
+  const restritoPorTurma = user?.papel === "professor" && atribuicoes !== null && !atribuicoes.acesso_total;
 
   async function carregar() {
     try {
@@ -88,17 +94,22 @@ function AlunosContent() {
     carregar();
   }, []);
 
+  const alunosVisiveis = useMemo(() => {
+    if (!alunos) return [];
+    if (!restritoPorTurma) return alunos;
+    return alunos.filter((a) => a.turma && turmasDoProfessor.includes(a.turma));
+  }, [alunos, restritoPorTurma, turmasDoProfessor]);
+
   const turmas = useMemo(() => {
-    const unicas = new Set((alunos ?? []).map((a) => a.turma).filter((t): t is string => !!t));
+    const unicas = new Set(alunosVisiveis.map((a) => a.turma).filter((t): t is string => !!t));
     return Array.from(unicas).sort();
-  }, [alunos]);
+  }, [alunosVisiveis]);
 
   const alunosFiltrados = useMemo(() => {
-    if (!alunos) return [];
-    if (turmaFiltro === "todas") return alunos;
-    if (turmaFiltro === "sem-turma") return alunos.filter((a) => !a.turma);
-    return alunos.filter((a) => a.turma === turmaFiltro);
-  }, [alunos, turmaFiltro]);
+    if (turmaFiltro === "todas") return alunosVisiveis;
+    if (turmaFiltro === "sem-turma") return alunosVisiveis.filter((a) => !a.turma);
+    return alunosVisiveis.filter((a) => a.turma === turmaFiltro);
+  }, [alunosVisiveis, turmaFiltro]);
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-4">
@@ -117,7 +128,7 @@ function AlunosContent() {
                   Turma {t}
                 </SelectItem>
               ))}
-              <SelectItem value="sem-turma">Sem turma</SelectItem>
+              {!restritoPorTurma && <SelectItem value="sem-turma">Sem turma</SelectItem>}
             </SelectContent>
           </Select>
         }

@@ -12,6 +12,7 @@ from app.api.routes import (
     configuracao_periodo,
     disciplinas,
     faltas,
+    painel,
     professores,
     punicoes,
     ranking,
@@ -51,6 +52,7 @@ app.include_router(faltas.router)
 app.include_router(boletim.router)
 app.include_router(ranking.router)
 app.include_router(anos_letivos.router)
+app.include_router(painel.router)
 
 
 @app.get("/health")

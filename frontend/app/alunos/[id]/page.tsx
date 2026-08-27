@@ -9,6 +9,8 @@ import { z } from "zod";
 import { toast } from "sonner";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { Aluno, Professor, RegistroDisciplinar, RegistroDisciplinarResponse, RegraInfracao } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -266,6 +268,8 @@ function Historico({ registros }: { registros: RegistroDisciplinar[] }) {
 function AlunoDetailContent() {
   const params = useParams<{ id: string }>();
   const alunoId = Number(params.id);
+  const { user } = useAuth();
+  const { dados: atribuicoes, turmas: turmasDoProfessor } = useAtribuicoes();
 
   const [aluno, setAluno] = useState<Aluno | null>(null);
   const [regras, setRegras] = useState<RegraInfracao[]>([]);
@@ -306,6 +310,9 @@ function AlunoDetailContent() {
 
   if (erro) return <p className="p-6 text-destructive">{erro}</p>;
   if (!aluno) return <p className="p-6 text-muted-foreground">Carregando...</p>;
+
+  const restritoPorTurma = user?.papel === "professor" && atribuicoes !== null && !atribuicoes.acesso_total;
+  const podeRegistrar = !restritoPorTurma || (!!aluno.turma && turmasDoProfessor.includes(aluno.turma));
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-4">
@@ -350,10 +357,18 @@ function AlunoDetailContent() {
         </DialogContent>
       </Dialog>
 
-      <div id="registrar" className="grid md:grid-cols-2 gap-4 scroll-mt-4">
-        <RegistrarInfracao alunoId={aluno.id} regras={regras} professores={professores} onRegistrado={handleRegistroFeito} />
-        <RegistrarMerito alunoId={aluno.id} professores={professores} onRegistrado={handleRegistroFeito} />
-      </div>
+      {podeRegistrar ? (
+        <div id="registrar" className="grid md:grid-cols-2 gap-4 scroll-mt-4">
+          <RegistrarInfracao alunoId={aluno.id} regras={regras} professores={professores} onRegistrado={handleRegistroFeito} />
+          <RegistrarMerito alunoId={aluno.id} professores={professores} onRegistrado={handleRegistroFeito} />
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="text-sm text-muted-foreground">
+            Você não está vinculado à turma deste aluno — não é possível registrar ocorrências.
+          </CardContent>
+        </Card>
+      )}
 
       <ObservacoesAluno observacoes={aluno.observacoes_condutas} />
 

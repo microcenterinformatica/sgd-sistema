@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
 
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
+from app.core.permissoes import verificar_permissao_turma
 from app.models.aluno import Aluno
 from app.models.escola import Escola
 from app.models.professor import Professor
@@ -66,6 +67,7 @@ def _montar_read(registro: RegistroDisciplinar, professor_nome: Optional[str]) -
 @router.post("/infracao", response_model=RegistroDisciplinarResponse, status_code=status.HTTP_201_CREATED)
 def registrar_infracao(dados: RegistroInfracaoCreate, session: SessionDep, usuario_atual: CurrentUserDep):
     aluno = _get_aluno_da_escola(session, dados.aluno_id, usuario_atual.escola_id)
+    verificar_permissao_turma(session, usuario_atual, aluno.turma)
     regra = _get_regra_da_escola(session, dados.regra_id, usuario_atual.escola_id)
     professor_nome = _get_professor_nome(session, dados.professor_id, usuario_atual.escola_id, usuario_atual.nome)
     escola = session.get(Escola, usuario_atual.escola_id)
@@ -114,6 +116,7 @@ def registrar_merito(dados: RegistroMeritoCreate, session: SessionDep, usuario_a
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="pontos_bonus deve ser positivo")
 
     aluno = _get_aluno_da_escola(session, dados.aluno_id, usuario_atual.escola_id)
+    verificar_permissao_turma(session, usuario_atual, aluno.turma)
     professor_nome = _get_professor_nome(session, dados.professor_id, usuario_atual.escola_id, usuario_atual.nome)
     escola = session.get(Escola, usuario_atual.escola_id)
     agora = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -163,6 +166,7 @@ def editar_registro_infracao(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Apenas registros de infração podem ser editados")
 
     aluno = session.get(Aluno, registro.aluno_id)
+    verificar_permissao_turma(session, usuario_atual, aluno.turma)
     regra = _get_regra_da_escola(session, dados.regra_id, usuario_atual.escola_id)
     agora = datetime.now(timezone.utc).replace(tzinfo=None)
 
