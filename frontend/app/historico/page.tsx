@@ -6,9 +6,18 @@ import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { calcularStatus } from "@/lib/conduta";
-import { Aluno, Punicao, RegistroDisciplinar } from "@/lib/types";
+import {
+  Aluno,
+  AtividadeNaoEntregueRead,
+  ConfiguracaoRanking,
+  FaltaRead,
+  Punicao,
+  RankingItem,
+  RegistroDisciplinar,
+} from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -20,26 +29,65 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+type TipoEvento = "infracao" | "merito" | "falta" | "nao_entrega";
+
+interface EventoHistorico {
+  key: string;
+  data: string;
+  tipo: TipoEvento;
+  descricao: string;
+  peso: number;
+  professorNome?: string | null;
+  observacao?: string | null;
+  registroId?: number;
+}
+
+const ROTULO_TIPO_EVENTO: Record<TipoEvento, { label: string; className: string }> = {
+  infracao: { label: "Infração", className: "" },
+  merito: { label: "Mérito", className: "" },
+  falta: { label: "Falta", className: "bg-amber-100 text-amber-700" },
+  nao_entrega: { label: "Não entregue", className: "bg-orange-100 text-orange-700" },
+};
+
+function BadgeEvento({ tipo }: { tipo: TipoEvento }) {
+  const { label, className } = ROTULO_TIPO_EVENTO[tipo];
+  if (tipo === "infracao") return <Badge variant="destructive">{label}</Badge>;
+  if (tipo === "merito") return <Badge variant="secondary">{label}</Badge>;
+  return <Badge className={className}>{label}</Badge>;
+}
+
 function HistoricoContent() {
   const { user } = useAuth();
   const podeExcluir = user?.papel === "admin_escola" || user?.papel === "coordenacao";
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [punicoes, setPunicoes] = useState<Punicao[]>([]);
   const [registros, setRegistros] = useState<RegistroDisciplinar[]>([]);
+  const [faltas, setFaltas] = useState<FaltaRead[]>([]);
+  const [naoEntregues, setNaoEntregues] = useState<AtividadeNaoEntregueRead[]>([]);
+  const [ranking, setRanking] = useState<RankingItem[]>([]);
+  const [configRanking, setConfigRanking] = useState<ConfiguracaoRanking>({ peso_falta: 1, peso_nao_entrega: 0 });
   const [turmaFiltro, setTurmaFiltro] = useState<string>("todas");
   const [buscaNome, setBuscaNome] = useState<string>("");
   const [erro, setErro] = useState<string | null>(null);
 
   async function carregar() {
     try {
-      const [a, p, r] = await Promise.all([
+      const [a, p, r, f, n, rk, cfg] = await Promise.all([
         api.get<Aluno[]>("/alunos"),
         api.get<Punicao[]>("/punicoes"),
         api.get<RegistroDisciplinar[]>("/registros"),
+        api.get<FaltaRead[]>("/faltas"),
+        api.get<AtividadeNaoEntregueRead[]>("/atividades/nao-entregues"),
+        api.get<RankingItem[]>("/ranking"),
+        api.get<ConfiguracaoRanking>("/configuracao-ranking"),
       ]);
       setAlunos(a.sort((x, y) => x.nome.localeCompare(y.nome)));
       setPunicoes(p);
       setRegistros(r);
+      setFaltas(f);
+      setNaoEntregues(n);
+      setRanking(rk);
+      setConfigRanking(cfg);
     } catch (err) {
       setErro(err instanceof ApiError ? err.message : "Erro ao carregar histórico");
     }
@@ -74,18 +122,53 @@ function HistoricoContent() {
       .filter((a) => a.nome.toLowerCase().includes(buscaNome.trim().toLowerCase()));
   }, [alunos, turmaFiltro, buscaNome]);
 
-  const registrosPorAluno = useMemo(() => {
-    const mapa = new Map<number, RegistroDisciplinar[]>();
-    for (const r of registros) {
-      const lista = mapa.get(r.aluno_id) ?? [];
-      lista.push(r);
-      mapa.set(r.aluno_id, lista);
+  const rankingPorAluno = useMemo(() => new Map(ranking.map((item) => [item.aluno_id, item])), [ranking]);
+
+  const eventosPorAluno = useMemo(() => {
+    const mapa = new Map<number, EventoHistorico[]>();
+    function adicionar(alunoId: number, evento: EventoHistorico) {
+      const lista = mapa.get(alunoId) ?? [];
+      lista.push(evento);
+      mapa.set(alunoId, lista);
     }
+
+    for (const r of registros) {
+      adicionar(r.aluno_id, {
+        key: `registro-${r.id}`,
+        data: r.data_hora,
+        tipo: r.tipo,
+        descricao: r.descricao,
+        peso: r.peso,
+        professorNome: r.professor_nome,
+        observacao: r.observacao,
+        registroId: r.id,
+      });
+    }
+    for (const f of faltas) {
+      if (f.justificada) continue;
+      adicionar(f.aluno_id, {
+        key: `falta-${f.id}`,
+        data: f.data,
+        tipo: "falta",
+        descricao: "Falta não justificada",
+        peso: configRanking.peso_falta,
+      });
+    }
+    for (const n of naoEntregues) {
+      adicionar(n.aluno_id, {
+        key: `nao-entrega-${n.aluno_id}-${n.atividade_titulo}-${n.data}`,
+        data: n.data,
+        tipo: "nao_entrega",
+        descricao: `Não entregou: ${n.atividade_titulo} (${n.disciplina_nome})`,
+        peso: configRanking.peso_nao_entrega,
+      });
+    }
+
     for (const lista of mapa.values()) {
-      lista.sort((a, b) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
+      lista.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
     }
     return mapa;
-  }, [registros]);
+  }, [registros, faltas, naoEntregues, configRanking]);
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-4">
@@ -123,7 +206,8 @@ function HistoricoContent() {
 
       <div className="space-y-4">
         {alunosExibidos.map((aluno) => {
-          const historico = registrosPorAluno.get(aluno.id) ?? [];
+          const eventos = eventosPorAluno.get(aluno.id) ?? [];
+          const rankingAluno = rankingPorAluno.get(aluno.id);
           return (
             <Card key={aluno.id}>
               <CardHeader className="flex-row items-center justify-between border-b pb-3">
@@ -136,30 +220,40 @@ function HistoricoContent() {
                   </p>
                   <p className="text-xs text-muted-foreground">Status atual: {calcularStatus(aluno.pontos_atuais, punicoes)}</p>
                 </div>
-                <span className="text-sm font-semibold px-3 py-1 rounded-full bg-primary text-primary-foreground">
-                  {aluno.pontos_atuais} pontos
-                </span>
+                <div className="flex items-center gap-2">
+                  {rankingAluno && (
+                    <span className="text-sm font-semibold px-3 py-1 rounded-full bg-amber-100 text-amber-700" title="Pontuação no Ranking de Mérito">
+                      Ranking: {rankingAluno.pontuacao} pts
+                    </span>
+                  )}
+                  <span className="text-sm font-semibold px-3 py-1 rounded-full bg-primary text-primary-foreground">
+                    {aluno.pontos_atuais} pontos
+                  </span>
+                </div>
               </CardHeader>
               <CardContent>
-                {historico.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sem infrações ou méritos registrados.</p>
+                {eventos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sem infrações, méritos, faltas ou não entregas registradas.</p>
                 ) : (
                   <ul className="divide-y">
-                    {historico.map((r) => (
-                      <li key={r.id} className="py-2 flex items-center justify-between gap-3">
+                    {eventos.map((evento) => (
+                      <li key={evento.key} className="py-2 flex items-center justify-between gap-3">
                         <div>
-                          <p className="text-sm font-medium text-foreground">{r.descricao}</p>
+                          <div className="flex items-center gap-2">
+                            <BadgeEvento tipo={evento.tipo} />
+                            <p className="text-sm font-medium text-foreground">{evento.descricao}</p>
+                          </div>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(r.data_hora).toLocaleString("pt-BR")}
-                            {r.professor_nome ? ` — Professor(a): ${r.professor_nome}` : ""}
-                            {r.observacao ? ` — ${r.observacao}` : ""}
+                            {new Date(evento.data).toLocaleString("pt-BR")}
+                            {evento.professorNome ? ` — Professor(a): ${evento.professorNome}` : ""}
+                            {evento.observacao ? ` — ${evento.observacao}` : ""}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`text-sm font-semibold ${r.peso >= 0 ? "text-destructive" : "text-emerald-600"}`}>
-                            {r.peso >= 0 ? `+${r.peso}` : r.peso}
+                          <span className={`text-sm font-semibold ${evento.peso >= 0 ? "text-destructive" : "text-emerald-600"}`}>
+                            {evento.peso >= 0 ? `+${evento.peso}` : evento.peso}
                           </span>
-                          {podeExcluir && (
+                          {podeExcluir && evento.registroId !== undefined && (
                             <ConfirmDialog
                               trigger={
                                 <Button variant="ghost" size="sm" className="text-destructive">
@@ -167,9 +261,9 @@ function HistoricoContent() {
                                 </Button>
                               }
                               title="Excluir registro?"
-                              description={`Isso removerá "${r.descricao}" do histórico de ${aluno.nome} e recalculará a pontuação dele. Essa ação não pode ser desfeita.`}
+                              description={`Isso removerá "${evento.descricao}" do histórico de ${aluno.nome} e recalculará a pontuação dele. Essa ação não pode ser desfeita.`}
                               confirmLabel="Excluir"
-                              onConfirm={() => excluirRegistro(r.id)}
+                              onConfirm={() => excluirRegistro(evento.registroId as number)}
                             />
                           )}
                         </div>

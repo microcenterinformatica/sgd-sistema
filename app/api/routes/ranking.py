@@ -4,6 +4,7 @@ from sqlmodel import func, select
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
 from app.models.aluno import Aluno
 from app.models.configuracao_ranking import ConfiguracaoRanking
+from app.models.lancamento import Lancamento
 from app.models.registro_disciplinar import RegistroDisciplinar, TipoRegistro
 from app.models.registro_falta import RegistroFalta
 from app.models.usuario import PapelUsuario
@@ -51,6 +52,16 @@ def _somar_peso_por_tipo(session: SessionDep, escola_id: int, tipo: TipoRegistro
     return dict(linhas)
 
 
+def _contar_nao_entregas(session: SessionDep, escola_id: int) -> dict[int, int]:
+    linhas = session.exec(
+        select(Lancamento.aluno_id, func.count())
+        .join(Aluno, Aluno.id == Lancamento.aluno_id)
+        .where(Aluno.escola_id == escola_id, Lancamento.fez == False)  # noqa: E712
+        .group_by(Lancamento.aluno_id)
+    ).all()
+    return dict(linhas)
+
+
 @router.get("/ranking", response_model=list[RankingItem])
 def calcular_ranking(session: SessionDep, usuario_atual: CurrentUserDep):
     escola_id = usuario_atual.escola_id
@@ -66,16 +77,19 @@ def calcular_ranking(session: SessionDep, usuario_atual: CurrentUserDep):
             .group_by(RegistroFalta.aluno_id)
         ).all()
     )
+    nao_entregas_por_aluno = _contar_nao_entregas(session, escola_id)
 
     config = session.get(ConfiguracaoRanking, escola_id)
     peso_falta = config.peso_falta if config else 1.0
+    peso_nao_entrega = config.peso_nao_entrega if config else 0.0
 
     resultado: list[RankingItem] = []
     for aluno in alunos:
         total_merito = -merito_bruto_por_aluno.get(aluno.id, 0)
         total_infracao = infracao_por_aluno.get(aluno.id, 0)
         faltas = faltas_por_aluno.get(aluno.id, 0)
-        pontuacao = total_merito - total_infracao - peso_falta * faltas
+        nao_entregas = nao_entregas_por_aluno.get(aluno.id, 0)
+        pontuacao = total_merito - total_infracao - peso_falta * faltas - peso_nao_entrega * nao_entregas
         resultado.append(
             RankingItem(
                 aluno_id=aluno.id,
@@ -84,6 +98,7 @@ def calcular_ranking(session: SessionDep, usuario_atual: CurrentUserDep):
                 total_merito=total_merito,
                 total_infracao=total_infracao,
                 faltas_nao_justificadas=faltas,
+                atividades_nao_entregues=nao_entregas,
                 pontuacao=round(pontuacao, 2),
             )
         )

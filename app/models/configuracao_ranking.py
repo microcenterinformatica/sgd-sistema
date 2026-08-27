@@ -6,3 +6,4 @@ class ConfiguracaoRanking(SQLModel, table=True):
 
     escola_id: int = Field(foreign_key="escola.id", primary_key=True)
     peso_falta: float = Field(default=1.0)
+    peso_nao_entrega: float = Field(default=0.0)

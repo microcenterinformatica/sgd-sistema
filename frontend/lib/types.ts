@@ -196,6 +196,14 @@ export interface FaltaRead {
   observacao: string | null;
 }
 
+export interface AtividadeNaoEntregueRead {
+  aluno_id: number;
+  atividade_titulo: string;
+  disciplina_nome: string;
+  tipo: TipoAtividade;
+  data: string;
+}
+
 export interface ChamadaAlunoStatus {
   aluno_id: number;
   aluno_nome: string;
@@ -253,6 +261,7 @@ export interface ConfiguracaoPeriodo {
 
 export interface ConfiguracaoRanking {
   peso_falta: number;
+  peso_nao_entrega: number;
 }
 
 export interface RankingItem {
@@ -262,6 +271,7 @@ export interface RankingItem {
   total_merito: number;
   total_infracao: number;
   faltas_nao_justificadas: number;
+  atividades_nao_entregues: number;
   pontuacao: number;
 }
 

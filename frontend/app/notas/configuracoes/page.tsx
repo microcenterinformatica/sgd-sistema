@@ -15,13 +15,17 @@ const TRIMESTRES = [1, 2, 3] as const;
 
 function ConfiguracaoRankingCard() {
   const [pesoFalta, setPesoFalta] = useState("1");
+  const [pesoNaoEntrega, setPesoNaoEntrega] = useState("0");
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     api
       .get<ConfiguracaoRanking>("/configuracao-ranking")
-      .then((c) => setPesoFalta(String(c.peso_falta)))
+      .then((c) => {
+        setPesoFalta(String(c.peso_falta));
+        setPesoNaoEntrega(String(c.peso_nao_entrega));
+      })
       .catch((err) => toast.error(err instanceof ApiError ? err.message : "Erro ao carregar configuração"))
       .finally(() => setCarregando(false));
   }, []);
@@ -29,7 +33,10 @@ function ConfiguracaoRankingCard() {
   async function salvar() {
     setSalvando(true);
     try {
-      await api.put("/configuracao-ranking", { peso_falta: Number(pesoFalta) });
+      await api.put("/configuracao-ranking", {
+        peso_falta: Number(pesoFalta),
+        peso_nao_entrega: Number(pesoNaoEntrega),
+      });
       toast.success("Configuração salva com sucesso.");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erro ao salvar");
@@ -59,6 +66,24 @@ function ConfiguracaoRankingCard() {
           )}
           <p className="text-xs text-muted-foreground">
             Quantos pontos cada falta não justificada desconta na pontuação do ranking.
+          </p>
+        </div>
+        <div className="space-y-1 max-w-xs">
+          <Label>Peso de cada atividade não entregue</Label>
+          {carregando ? (
+            <p className="text-sm text-muted-foreground">Carregando...</p>
+          ) : (
+            <Input
+              type="number"
+              min="0"
+              step="0.5"
+              value={pesoNaoEntrega}
+              onChange={(e) => setPesoNaoEntrega(e.target.value)}
+            />
+          )}
+          <p className="text-xs text-muted-foreground">
+            Quantos pontos descontam na pontuação do ranking quando um professor marca que o
+            aluno não fez uma atividade ou prova (independente da nota). Deixe 0 para não descontar.
           </p>
         </div>
         <Button onClick={salvar} disabled={salvando || carregando} variant="success">

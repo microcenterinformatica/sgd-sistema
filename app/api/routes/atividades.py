@@ -13,7 +13,13 @@ from app.models.disciplina import Disciplina
 from app.models.lancamento import Lancamento
 from app.models.turma import Turma
 from app.models.atividade import TipoAtividade
-from app.schemas.atividade import AtividadeCreate, AtividadeRead, AtividadeResumoItem, AtividadeUpdate
+from app.schemas.atividade import (
+    AtividadeCreate,
+    AtividadeNaoEntregueRead,
+    AtividadeRead,
+    AtividadeResumoItem,
+    AtividadeUpdate,
+)
 from app.schemas.lancamento import LancamentoAlunoRead, LancamentoLoteCreate, LancamentoRead
 
 router = APIRouter(tags=["atividades"])
@@ -159,6 +165,26 @@ def listar_atividades(
 @router.get("/turmas", response_model=list[str])
 def listar_turmas_da_escola(session: SessionDep, usuario_atual: CurrentUserDep):
     return _listar_turmas(session, usuario_atual.escola_id)
+
+
+@router.get("/atividades/nao-entregues", response_model=list[AtividadeNaoEntregueRead])
+def listar_nao_entregues(session: SessionDep, usuario_atual: CurrentUserDep):
+    linhas = session.exec(
+        select(Lancamento, Atividade, Disciplina)
+        .join(Atividade, Lancamento.atividade_id == Atividade.id)
+        .join(Disciplina, Atividade.disciplina_id == Disciplina.id)
+        .where(Atividade.escola_id == usuario_atual.escola_id, Lancamento.fez == False)  # noqa: E712
+    ).all()
+    return [
+        AtividadeNaoEntregueRead(
+            aluno_id=lancamento.aluno_id,
+            atividade_titulo=atividade.titulo,
+            disciplina_nome=disciplina.nome,
+            tipo=atividade.tipo,
+            data=atividade.data_entrega or atividade.data,
+        )
+        for lancamento, atividade, disciplina in linhas
+    ]
 
 
 @router.get("/atividades/resumo", response_model=list[AtividadeResumoItem])

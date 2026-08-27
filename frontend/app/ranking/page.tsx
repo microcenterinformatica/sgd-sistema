@@ -25,7 +25,7 @@ interface GrupoRanking {
 }
 
 function detalhe(item: RankingItem): string {
-  return `mérito ${item.total_merito} · ocorrências ${item.total_infracao} · ${item.faltas_nao_justificadas} falta(s)`;
+  return `mérito ${item.total_merito} · ocorrências ${item.total_infracao} · ${item.faltas_nao_justificadas} falta(s) · ${item.atividades_nao_entregues} não entregue(s)`;
 }
 
 function LinhaRanking({ item, posicao }: { item: RankingItem; posicao: number }) {
@@ -96,7 +96,7 @@ function RankingContent() {
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <PageHeader
         title="Ranking de Mérito"
-        subtitle="Pontuação = mérito − ocorrências de indisciplina − (peso × faltas não justificadas)."
+        subtitle="Pontuação = mérito − ocorrências de indisciplina − (peso × faltas não justificadas) − (peso × atividades não entregues)."
         action={
           <div className="flex gap-2">
             <Button

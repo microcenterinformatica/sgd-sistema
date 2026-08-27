@@ -24,6 +24,14 @@ class AtividadeCreate(SQLModel):
         return self
 
 
+class AtividadeNaoEntregueRead(SQLModel):
+    aluno_id: int
+    atividade_titulo: str
+    disciplina_nome: str
+    tipo: TipoAtividade
+    data: date
+
+
 class AtividadeUpdate(SQLModel):
     titulo: Optional[str] = None
     categoria_id: Optional[int] = None
