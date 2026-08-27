@@ -15,6 +15,9 @@ function PunicoesContent() {
   const [punicoes, setPunicoes] = useState<Punicao[] | null>(null);
   const [descricao, setDescricao] = useState("");
   const [pontuacaoMinima, setPontuacaoMinima] = useState("");
+  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [editDescricao, setEditDescricao] = useState("");
+  const [editPontuacaoMinima, setEditPontuacaoMinima] = useState("");
 
   async function carregar() {
     const dados = await api.get<Punicao[]>("/punicoes");
@@ -49,6 +52,27 @@ function PunicoesContent() {
     carregar();
   }
 
+  function iniciarEdicao(punicao: Punicao) {
+    setEditandoId(punicao.id);
+    setEditDescricao(punicao.descricao);
+    setEditPontuacaoMinima(String(punicao.pontuacao_minima));
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null);
+  }
+
+  async function salvarEdicao(id: number) {
+    try {
+      await api.put(`/punicoes/${id}`, { descricao: editDescricao, pontuacao_minima: Number(editPontuacaoMinima) });
+      setEditandoId(null);
+      carregar();
+      toast.success("Conduta atualizada com sucesso");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao atualizar conduta");
+    }
+  }
+
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-4">
       <PageHeader title="Condutas" />
@@ -71,22 +95,48 @@ function PunicoesContent() {
 
       <Card className="py-0">
         <CardContent className="divide-y px-0">
-          {punicoes?.map((p) => (
-            <div key={p.id} className="flex items-center justify-between p-4">
-              <div>
-                <p className={`font-medium ${p.ativo ? "text-foreground" : "text-muted-foreground line-through"}`}>{p.descricao}</p>
-                <p className="text-sm text-muted-foreground">A partir de {p.pontuacao_minima} pontos</p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => alternarAtivo(p)}>
-                  {p.ativo ? "Desativar" : "Ativar"}
+          {punicoes?.map((p) =>
+            editandoId === p.id ? (
+              <div key={p.id} className="flex flex-wrap items-end gap-3 p-4">
+                <div className="flex-1 min-w-[200px] space-y-1">
+                  <Label>Descrição</Label>
+                  <Input value={editDescricao} onChange={(e) => setEditDescricao(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Pontuação mínima</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editPontuacaoMinima}
+                    onChange={(e) => setEditPontuacaoMinima(e.target.value)}
+                    className="w-28"
+                  />
+                </div>
+                <Button onClick={() => salvarEdicao(p.id)}>Salvar</Button>
+                <Button variant="outline" onClick={cancelarEdicao}>
+                  Cancelar
                 </Button>
-                <Button variant="destructive" onClick={() => excluir(p.id)}>
-                  Excluir
-                </Button>
               </div>
-            </div>
-          ))}
+            ) : (
+              <div key={p.id} className="flex items-center justify-between p-4">
+                <div>
+                  <p className={`font-medium ${p.ativo ? "text-foreground" : "text-muted-foreground line-through"}`}>{p.descricao}</p>
+                  <p className="text-sm text-muted-foreground">A partir de {p.pontuacao_minima} pontos</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => iniciarEdicao(p)}>
+                    Editar
+                  </Button>
+                  <Button variant="outline" onClick={() => alternarAtivo(p)}>
+                    {p.ativo ? "Desativar" : "Ativar"}
+                  </Button>
+                  <Button variant="destructive" onClick={() => excluir(p.id)}>
+                    Excluir
+                  </Button>
+                </div>
+              </div>
+            )
+          )}
         </CardContent>
       </Card>
     </div>
