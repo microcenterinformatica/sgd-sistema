@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import { Inter } from "next/font/google";
@@ -6,12 +6,22 @@ import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppShell from "@/components/AppShell";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "SGD - Sistema de Gestão da Disciplina Escolar",
   description: "Controle disciplinar escolar multi-tenant",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "SGD",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1e3a8a",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -24,6 +34,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <Toaster richColors position="top-right" />
           </TooltipProvider>
         </AuthProvider>
+        <ServiceWorkerRegister />
       </body>
     </html>
   );
