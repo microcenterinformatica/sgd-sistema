@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
-import { ConfiguracaoPeriodo, ConfiguracaoRanking } from "@/lib/types";
+import { ConfiguracaoPeriodo, ConfiguracaoRanking, ConfiguracaoRecuperacao } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -94,6 +94,105 @@ function ConfiguracaoRankingCard() {
   );
 }
 
+function ConfiguracaoRecuperacaoCard() {
+  const [ativo, setAtivo] = useState(false);
+  const [diasParaRecuperacao, setDiasParaRecuperacao] = useState("7");
+  const [pontosRecuperacao, setPontosRecuperacao] = useState("2");
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    api
+      .get<ConfiguracaoRecuperacao>("/configuracao-recuperacao")
+      .then((c) => {
+        setAtivo(c.ativo);
+        setDiasParaRecuperacao(String(c.dias_para_recuperacao));
+        setPontosRecuperacao(String(c.pontos_recuperacao));
+      })
+      .catch((err) => toast.error(err instanceof ApiError ? err.message : "Erro ao carregar configuração"))
+      .finally(() => setCarregando(false));
+  }, []);
+
+  async function salvar() {
+    setSalvando(true);
+    try {
+      await api.put("/configuracao-recuperacao", {
+        ativo,
+        dias_para_recuperacao: Number(diasParaRecuperacao),
+        pontos_recuperacao: Number(pontosRecuperacao),
+      });
+      toast.success("Configuração salva com sucesso.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao salvar");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="border-b pb-3">
+        <CardTitle>Recuperação automática de pontos</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Quando ativado, um aluno que ficar um período seguido sem nenhuma infração nova recebe um
+          desconto automático na pontuação de indisciplina — um incentivo por bom comportamento
+          contínuo. A contagem reinicia sempre que o aluno recebe uma infração nova.
+        </p>
+
+        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <input
+            type="checkbox"
+            checked={ativo}
+            onChange={(e) => setAtivo(e.target.checked)}
+            className="size-4 accent-primary"
+            disabled={carregando}
+          />
+          Ativar recuperação automática
+        </label>
+
+        <div className="grid sm:grid-cols-2 gap-4 max-w-md">
+          <div className="space-y-1">
+            <Label>Dias sem infração para recuperar</Label>
+            {carregando ? (
+              <p className="text-sm text-muted-foreground">Carregando...</p>
+            ) : (
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={diasParaRecuperacao}
+                onChange={(e) => setDiasParaRecuperacao(e.target.value)}
+                disabled={!ativo}
+              />
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label>Pontos descontados automaticamente</Label>
+            {carregando ? (
+              <p className="text-sm text-muted-foreground">Carregando...</p>
+            ) : (
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={pontosRecuperacao}
+                onChange={(e) => setPontosRecuperacao(e.target.value)}
+                disabled={!ativo}
+              />
+            )}
+          </div>
+        </div>
+
+        <Button onClick={salvar} disabled={salvando || carregando} variant="success">
+          {salvando ? "Salvando..." : "Salvar"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ConfiguracoesContent() {
   const [config, setConfig] = useState<Record<string, string>>({});
   const [carregando, setCarregando] = useState(true);
@@ -172,6 +271,7 @@ function ConfiguracoesContent() {
       </Button>
 
       <ConfiguracaoRankingCard />
+      <ConfiguracaoRecuperacaoCard />
     </div>
   );
 }

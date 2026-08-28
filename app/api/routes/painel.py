@@ -17,6 +17,7 @@ from app.models.registro_disciplinar import RegistroDisciplinar, TipoRegistro
 from app.models.registro_falta import RegistroFalta
 from app.models.usuario import Usuario
 from app.schemas.painel import AlunoAlerta, AlunoFaltouHoje, PainelResumo, RegistroRecente
+from app.services.pontuacao import aplicar_recuperacoes_pendentes
 from app.services.whatsapp import gerar_link_whatsapp, montar_mensagem_falta
 
 router = APIRouter(prefix="/painel", tags=["painel"])
@@ -108,6 +109,7 @@ def resumo_painel(session: SessionDep, usuario_atual: CurrentUserDep):
     turmas = turmas_permitidas(session, usuario_atual)
 
     alunos = session.exec(_query_alunos(escola_id, turmas)).all()
+    aplicar_recuperacoes_pendentes(session, alunos, escola_id)
     total_alunos = len(alunos)
     alunos_por_id = {a.id: a for a in alunos}
 

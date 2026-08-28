@@ -11,6 +11,7 @@ from app.models.registro_disciplinar import RegistroDisciplinar
 from app.models.turma import Turma
 from app.models.usuario import PapelUsuario
 from app.schemas.aluno import AlunoCreate, AlunoRead, AlunoUpdate
+from app.services.pontuacao import aplicar_recuperacoes_pendentes
 
 router = APIRouter(prefix="/alunos", tags=["alunos"])
 
@@ -78,7 +79,9 @@ def criar_aluno(dados: AlunoCreate, session: SessionDep, usuario_atual=Depends(r
 
 @router.get("", response_model=list[AlunoRead])
 def listar_alunos(session: SessionDep, usuario_atual: CurrentUserDep):
-    return session.exec(select(Aluno).where(Aluno.escola_id == usuario_atual.escola_id)).all()
+    alunos = session.exec(select(Aluno).where(Aluno.escola_id == usuario_atual.escola_id)).all()
+    aplicar_recuperacoes_pendentes(session, alunos, usuario_atual.escola_id)
+    return alunos
 
 
 @router.get("/proxima-matricula")
@@ -96,7 +99,9 @@ def proxima_matricula(session: SessionDep, usuario_atual=Depends(require_roles(*
 
 @router.get("/{aluno_id}", response_model=AlunoRead)
 def obter_aluno(aluno_id: int, session: SessionDep, usuario_atual: CurrentUserDep):
-    return _get_aluno_da_escola(session, aluno_id, usuario_atual.escola_id)
+    aluno = _get_aluno_da_escola(session, aluno_id, usuario_atual.escola_id)
+    aplicar_recuperacoes_pendentes(session, [aluno], usuario_atual.escola_id)
+    return aluno
 
 
 @router.put("/{aluno_id}", response_model=AlunoRead)

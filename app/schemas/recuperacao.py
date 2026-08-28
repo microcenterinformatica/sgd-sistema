@@ -1,13 +1,15 @@
+from typing import Optional
+
 from sqlmodel import SQLModel
 
 
-class AlunoRecuperado(SQLModel):
-    aluno_id: int
-    nome: str
-    pontos_reduzidos: int
+class ConfiguracaoRecuperacaoRead(SQLModel):
+    ativo: bool
+    dias_para_recuperacao: int
+    pontos_recuperacao: int
 
 
-class RecuperacaoResponse(SQLModel):
-    total_alunos_recuperados: int
-    total_pontos_reduzidos: int
-    detalhes: list[AlunoRecuperado]
+class ConfiguracaoRecuperacaoUpdate(SQLModel):
+    ativo: Optional[bool] = None
+    dias_para_recuperacao: Optional[int] = None
+    pontos_recuperacao: Optional[int] = None

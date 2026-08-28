@@ -274,6 +274,12 @@ export interface ConfiguracaoRanking {
   peso_nao_entrega: number;
 }
 
+export interface ConfiguracaoRecuperacao {
+  ativo: boolean;
+  dias_para_recuperacao: number;
+  pontos_recuperacao: number;
+}
+
 export interface RankingItem {
   aluno_id: number;
   aluno_nome: string;
