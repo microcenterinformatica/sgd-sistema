@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlmodel import select
+from sqlmodel import func, select
 
 from app.api.deps import SessionDep
 from app.core.security import criar_access_token, verificar_senha
@@ -17,7 +17,9 @@ def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: SessionDep,
 ) -> Token:
-    usuario = session.exec(select(Usuario).where(Usuario.email == form_data.username)).first()
+    usuario = session.exec(
+        select(Usuario).where(func.lower(Usuario.email) == form_data.username.lower())
+    ).first()
 
     if usuario is None or not verificar_senha(form_data.password, usuario.senha_hash):
         raise HTTPException(

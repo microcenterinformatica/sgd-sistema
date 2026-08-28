@@ -67,7 +67,7 @@ const ITENS_NOTAS = [
 
 const ITENS_NOTAS_GESTAO = [
   { href: "/notas/disciplinas", label: "Disciplinas", icon: BookMarked },
-  { href: "/notas/configuracoes", label: "Configuração de período", icon: Settings2 },
+  { href: "/notas/configuracoes", label: "Configuração", icon: Settings2 },
 ];
 
 function NavItens({ itens }: { itens: typeof ITENS_PRINCIPAIS }) {
