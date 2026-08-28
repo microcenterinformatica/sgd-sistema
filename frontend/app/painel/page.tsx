@@ -9,7 +9,7 @@ import { PainelResumo } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function StatCard({
@@ -117,13 +117,14 @@ function DashboardContent() {
                   </p>
                 </div>
                 {f.whatsapp_link ? (
-                  <Button
-                    variant="success"
-                    size="sm"
-                    render={<a href={f.whatsapp_link} target="_blank" rel="noopener noreferrer" />}
+                  <a
+                    href={f.whatsapp_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={buttonVariants({ variant: "success", size: "sm" })}
                   >
                     Contatar responsável
-                  </Button>
+                  </a>
                 ) : (
                   <Badge variant="secondary">Sem WhatsApp cadastrado</Badge>
                 )}

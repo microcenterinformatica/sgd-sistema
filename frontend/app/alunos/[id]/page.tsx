@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth";
 import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { Aluno, Professor, RegistroDisciplinar, RegistroDisciplinarResponse, RegraInfracao } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -345,13 +345,15 @@ function AlunoDetailContent() {
               Não
             </Button>
             {ultimoWhatsapp && (
-              <Button
-                variant="success"
-                render={<a href={ultimoWhatsapp} target="_blank" rel="noopener noreferrer" />}
+              <a
+                href={ultimoWhatsapp}
+                target="_blank"
+                rel="noopener noreferrer"
                 onClick={() => setUltimoWhatsapp(null)}
+                className={buttonVariants({ variant: "success" })}
               >
                 Sim, enviar
-              </Button>
+              </a>
             )}
           </DialogFooter>
         </DialogContent>

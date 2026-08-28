@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth";
 import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { Aluno } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -65,9 +65,9 @@ const columns: ColumnDef<Aluno>[] = [
     id: "acoes",
     header: "",
     cell: ({ row }) => (
-      <Button size="sm" render={<Link href={`/alunos/${row.original.id}#registrar`} />}>
+      <Link href={`/alunos/${row.original.id}#registrar`} className={buttonVariants({ size: "sm" })}>
         Registrar
-      </Button>
+      </Link>
     ),
   },
 ];
@@ -139,7 +139,13 @@ function AlunosContent() {
       {alunos === null ? (
         <p className="text-muted-foreground">Carregando...</p>
       ) : (
-        <DataTable columns={columns} data={alunosFiltrados} searchPlaceholder="Buscar aluno por nome..." emptyMessage="Nenhum aluno encontrado." />
+        <DataTable
+          columns={columns}
+          data={alunosFiltrados}
+          searchPlaceholder="Buscar aluno por nome ou nº de chamada..."
+          emptyMessage="Nenhum aluno encontrado."
+          paginate={false}
+        />
       )}
     </div>
   );

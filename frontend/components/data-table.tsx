@@ -20,6 +20,7 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
   searchPlaceholder?: string;
   emptyMessage?: string;
+  paginate?: boolean;
 }
 
 export function DataTable<TData, TValue>({
@@ -27,6 +28,7 @@ export function DataTable<TData, TValue>({
   data,
   searchPlaceholder = "Buscar...",
   emptyMessage = "Nenhum resultado encontrado.",
+  paginate = true,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -38,7 +40,7 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    getPaginationRowModel: paginate ? getPaginationRowModel() : undefined,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     initialState: { pagination: { pageSize: 10 } },
@@ -88,16 +90,20 @@ export function DataTable<TData, TValue>({
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount() || 1} — {data.length} aluno(s)
+          {paginate
+            ? `Página ${table.getState().pagination.pageIndex + 1} de ${table.getPageCount() || 1} — ${data.length} aluno(s)`
+            : `${data.length} aluno(s)`}
         </p>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
-            Anterior
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
-            Próxima
-          </Button>
-        </div>
+        {paginate && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+              Anterior
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+              Próxima
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
