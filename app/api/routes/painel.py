@@ -1,5 +1,5 @@
 from calendar import monthrange
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter
@@ -9,11 +9,15 @@ from app.api.deps import CurrentUserDep, SessionDep
 from app.core.permissoes import turmas_permitidas
 from app.models.aluno import Aluno
 from app.models.configuracao_recuperacao import ConfiguracaoRecuperacao
+from app.models.disciplina import Disciplina
+from app.models.escola import Escola
 from app.models.professor import Professor
 from app.models.punicao import Punicao
 from app.models.registro_disciplinar import RegistroDisciplinar, TipoRegistro
+from app.models.registro_falta import RegistroFalta
 from app.models.usuario import Usuario
-from app.schemas.painel import AlunoAlerta, PainelResumo, RegistroRecente
+from app.schemas.painel import AlunoAlerta, AlunoFaltouHoje, PainelResumo, RegistroRecente
+from app.services.whatsapp import gerar_link_whatsapp, montar_mensagem_falta
 
 router = APIRouter(prefix="/painel", tags=["painel"])
 
@@ -51,6 +55,53 @@ def _calcular_alerta(aluno: Aluno, punicoes: list[Punicao], pontos_para_alerta: 
     )
 
 
+def _faltas_de_hoje(
+    session: SessionDep, escola_id: int, turmas: Optional[list[str]], alunos_por_id: dict[int, Aluno]
+) -> list[AlunoFaltouHoje]:
+    hoje = date.today()
+
+    query = (
+        select(RegistroFalta, Disciplina.nome)
+        .join(Aluno, RegistroFalta.aluno_id == Aluno.id)
+        .outerjoin(Disciplina, RegistroFalta.disciplina_id == Disciplina.id)
+        .where(
+            RegistroFalta.escola_id == escola_id,
+            RegistroFalta.data == hoje,
+            RegistroFalta.justificada == False,  # noqa: E712
+        )
+    )
+    if turmas is not None:
+        query = query.where(Aluno.turma.in_(turmas))
+
+    escola = session.get(Escola, escola_id)
+    escola_nome = escola.nome if escola else ""
+    data_str = hoje.strftime("%d/%m/%Y")
+
+    disciplinas_por_aluno: dict[int, list[str]] = {}
+    for falta, disciplina_nome in session.exec(query).all():
+        lista = disciplinas_por_aluno.setdefault(falta.aluno_id, [])
+        if disciplina_nome and disciplina_nome not in lista:
+            lista.append(disciplina_nome)
+
+    resultado = []
+    for aluno_id, disciplinas in disciplinas_por_aluno.items():
+        aluno = alunos_por_id.get(aluno_id)
+        if aluno is None:
+            continue
+        mensagem = montar_mensagem_falta(escola_nome, aluno.nome, data_str, disciplinas)
+        resultado.append(
+            AlunoFaltouHoje(
+                aluno_id=aluno.id,
+                aluno_nome=aluno.nome,
+                turma=aluno.turma,
+                disciplinas=disciplinas,
+                whatsapp_link=gerar_link_whatsapp(aluno.whatsapp_responsavel, mensagem),
+            )
+        )
+    resultado.sort(key=lambda a: a.aluno_nome)
+    return resultado
+
+
 @router.get("/resumo", response_model=PainelResumo)
 def resumo_painel(session: SessionDep, usuario_atual: CurrentUserDep):
     escola_id = usuario_atual.escola_id
@@ -58,6 +109,7 @@ def resumo_painel(session: SessionDep, usuario_atual: CurrentUserDep):
 
     alunos = session.exec(_query_alunos(escola_id, turmas)).all()
     total_alunos = len(alunos)
+    alunos_por_id = {a.id: a for a in alunos}
 
     agora = datetime.now(timezone.utc).replace(tzinfo=None)
     inicio_mes = agora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -106,7 +158,6 @@ def resumo_painel(session: SessionDep, usuario_atual: CurrentUserDep):
 
     professores_por_id = {p.id: p for p in session.exec(select(Professor).where(Professor.escola_id == escola_id))}
     usuarios_por_id = {u.id: u for u in session.exec(select(Usuario).where(Usuario.escola_id == escola_id))}
-    alunos_por_id = {a.id: a for a in alunos}
 
     def professor_nome_de(registro: RegistroDisciplinar) -> Optional[str]:
         if registro.professor_id is not None:
@@ -124,6 +175,8 @@ def resumo_painel(session: SessionDep, usuario_atual: CurrentUserDep):
         for r in registros_recentes
     ]
 
+    faltas_hoje = _faltas_de_hoje(session, escola_id, turmas, alunos_por_id)
+
     return PainelResumo(
         escopo="turmas" if turmas is not None else "total",
         turmas=turmas or [],
@@ -132,4 +185,5 @@ def resumo_painel(session: SessionDep, usuario_atual: CurrentUserDep):
         pontos_merito_mes=pontos_merito_mes,
         alunos_alerta=alunos_alerta,
         recentes=recentes,
+        faltas_hoje=faltas_hoje,
     )

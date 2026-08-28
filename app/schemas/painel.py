@@ -19,6 +19,14 @@ class RegistroRecente(RegistroDisciplinarRead):
     aluno_nome: str
 
 
+class AlunoFaltouHoje(SQLModel):
+    aluno_id: int
+    aluno_nome: str
+    turma: Optional[str]
+    disciplinas: list[str] = []
+    whatsapp_link: Optional[str] = None
+
+
 class PainelResumo(SQLModel):
     escopo: Literal["total", "turmas"]
     turmas: list[str]
@@ -27,3 +35,4 @@ class PainelResumo(SQLModel):
     pontos_merito_mes: int
     alunos_alerta: list[AlunoAlerta]
     recentes: list[RegistroRecente]
+    faltas_hoje: list[AlunoFaltouHoje]

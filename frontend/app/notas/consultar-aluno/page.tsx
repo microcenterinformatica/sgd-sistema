@@ -305,8 +305,49 @@ function ConteudoCard({ conteudos }: { conteudos: ConteudoAulaRead[] }) {
   );
 }
 
+interface GrupoConteudo {
+  turma: string;
+  disciplinaNome: string;
+  itens: ConteudoAulaRead[];
+}
+
+function ConteudoAgrupadoCard({ grupos }: { grupos: GrupoConteudo[] }) {
+  return (
+    <Card>
+      <CardHeader className="border-b pb-3">
+        <CardTitle>Conteúdo lecionado — todas as turmas e disciplinas</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {grupos.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum conteúdo registrado no período.</p>
+        ) : (
+          grupos.map((grupo) => (
+            <div key={`${grupo.turma}-${grupo.disciplinaNome}`} className="rounded-lg border">
+              <div className="px-3 py-2 border-b bg-muted/40 rounded-t-lg">
+                <span className="text-sm font-semibold text-foreground">
+                  Turma {grupo.turma} — {grupo.disciplinaNome}
+                </span>
+              </div>
+              <div className="divide-y">
+                {grupo.itens.map((c) => (
+                  <div key={c.id} className="px-3 py-2 text-sm">
+                    <p className="text-xs text-muted-foreground">{formatarData(c.data)}</p>
+                    <p className="text-foreground whitespace-pre-wrap">{c.conteudo}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ConsultarAlunoContent() {
-  const { turmas, disciplinasDaTurma } = useAtribuicoes();
+  const { dados: dadosAtribuicoes, turmas, disciplinasDaTurma } = useAtribuicoes();
+  const [todasDisciplinas, setTodasDisciplinas] = useState(false);
+  const [conteudosAgrupados, setConteudosAgrupados] = useState<GrupoConteudo[] | null>(null);
   const [turma, setTurma] = useState("");
   const [disciplinaId, setDisciplinaId] = useState<number | "">("");
   const [alunos, setAlunos] = useState<AlunoResumo[]>([]);
@@ -497,9 +538,46 @@ function ConsultarAlunoContent() {
     }
   }
 
+  async function consultarConteudoTodas() {
+    if (!dadosAtribuicoes) return;
+    setConteudosAgrupados(null);
+    try {
+      const vistos = new Set<string>();
+      const combosUnicos = dadosAtribuicoes.combinacoes.filter((c) => {
+        const chave = `${c.turma}-${c.disciplina_id}`;
+        if (vistos.has(chave)) return false;
+        vistos.add(chave);
+        return true;
+      });
+      const grupos = await Promise.all(
+        combosUnicos.map(async (c) => {
+          const itens = await api.get<ConteudoAulaRead[]>(
+            `/faltas/conteudo?turma=${encodeURIComponent(c.turma)}&disciplina_id=${c.disciplina_id}`
+          );
+          return {
+            turma: c.turma,
+            disciplinaNome: c.disciplina_nome,
+            itens: itens
+              .filter((item) => (!dataInicio || item.data >= dataInicio) && (!dataFim || item.data <= dataFim))
+              .sort((a, b) => (a.data < b.data ? 1 : -1)),
+          };
+        })
+      );
+      setConteudosAgrupados(
+        grupos
+          .filter((g) => g.itens.length > 0)
+          .sort((a, b) => a.turma.localeCompare(b.turma) || a.disciplinaNome.localeCompare(b.disciplinaNome))
+      );
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao consultar conteúdo");
+    }
+  }
+
   async function consultarConteudo() {
-    if (!disciplinaId) return;
     setConteudos(null);
+    setConteudosAgrupados(null);
+    if (todasDisciplinas) return consultarConteudoTodas();
+    if (!disciplinaId) return;
     try {
       const lista = await api.get<ConteudoAulaRead[]>(
         `/faltas/conteudo?turma=${encodeURIComponent(turma)}&disciplina_id=${disciplinaId}`
@@ -518,11 +596,19 @@ function ConsultarAlunoContent() {
     if (aba === "conteudo") return consultarConteudo();
   }
 
+  const modoTodasDisciplinas = aba === "conteudo" && todasDisciplinas;
+  const mostrarTurma = !modoTodasDisciplinas;
   const mostrarDisciplina = aba !== "anual" && aba !== "disciplina";
   const mostrarAluno = aba !== "conteudo";
   const mostrarPeriodo = aba === "periodo" || aba === "frequencia" || aba === "atividades" || aba === "conteudo";
   const consultarDesabilitado =
-    aba === "conteudo" ? !disciplinaId : aba === "disciplina" ? !alunoId : !alunoId || !disciplinaId;
+    aba === "conteudo"
+      ? todasDisciplinas
+        ? false
+        : !disciplinaId
+      : aba === "disciplina"
+        ? !alunoId
+        : !alunoId || !disciplinaId;
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-4">
@@ -544,32 +630,53 @@ function ConsultarAlunoContent() {
       <Card>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-            <div className="space-y-1">
-              <Label>Turma</Label>
-              <Select value={turma} onValueChange={(v) => v && selecionarTurma(v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>{(v: string) => (v ? `Turma ${v}` : "Turma")}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {turmas.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      Turma {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {mostrarTurma && (
+              <div className="space-y-1">
+                <Label>Turma</Label>
+                <Select value={turma} onValueChange={(v) => v && selecionarTurma(v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>{(v: string) => (v ? `Turma ${v}` : "Turma")}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {turmas.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        Turma {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {mostrarDisciplina && (
               <div className="space-y-1">
                 <Label>Disciplina</Label>
-                <Select value={disciplinaId ? String(disciplinaId) : ""} onValueChange={(v) => v && selecionarDisciplina(Number(v))}>
+                <Select
+                  value={aba === "conteudo" && todasDisciplinas ? "todas" : disciplinaId ? String(disciplinaId) : ""}
+                  onValueChange={(v) => {
+                    if (v === "todas") {
+                      setTodasDisciplinas(true);
+                      return;
+                    }
+                    setTodasDisciplinas(false);
+                    if (v) selecionarDisciplina(Number(v));
+                  }}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue>
-                      {(v: string) => (v ? disciplinasDisponiveis.find((d) => String(d.disciplina_id) === v)?.disciplina_nome : "Disciplina")}
+                      {(v: string) =>
+                        v === "todas"
+                          ? "Todas as disciplinas"
+                          : v
+                            ? disciplinasDisponiveis.find((d) => String(d.disciplina_id) === v)?.disciplina_nome
+                            : "Disciplina"
+                      }
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
+                    {aba === "conteudo" && (
+                      <SelectItem value="todas">Todas as disciplinas vinculadas</SelectItem>
+                    )}
                     {disciplinasDisponiveis.map((d) => (
                       <SelectItem key={d.disciplina_id} value={String(d.disciplina_id)}>
                         {d.disciplina_nome}
@@ -847,7 +954,11 @@ function ConsultarAlunoContent() {
         </Card>
       )}
 
-      {aba === "conteudo" && conteudos && <ConteudoCard conteudos={conteudos} />}
+      {aba === "conteudo" && !todasDisciplinas && conteudos && <ConteudoCard conteudos={conteudos} />}
+
+      {aba === "conteudo" && todasDisciplinas && conteudosAgrupados && (
+        <ConteudoAgrupadoCard grupos={conteudosAgrupados} />
+      )}
     </div>
   );
 }

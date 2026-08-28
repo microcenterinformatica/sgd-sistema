@@ -72,6 +72,14 @@ export interface AlunoAlerta {
   pontos_faltantes: number | null;
 }
 
+export interface AlunoFaltouHoje {
+  aluno_id: number;
+  aluno_nome: string;
+  turma: string | null;
+  disciplinas: string[];
+  whatsapp_link: string | null;
+}
+
 export interface PainelResumo {
   escopo: "total" | "turmas";
   turmas: string[];
@@ -80,6 +88,7 @@ export interface PainelResumo {
   pontos_merito_mes: number;
   alunos_alerta: AlunoAlerta[];
   recentes: (RegistroDisciplinar & { aluno_nome: string })[];
+  faltas_hoje: AlunoFaltouHoje[];
 }
 
 export interface RegistroDisciplinarResponse {

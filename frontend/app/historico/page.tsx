@@ -12,7 +12,6 @@ import {
   ConfiguracaoRanking,
   FaltaRead,
   Punicao,
-  RankingItem,
   RegistroDisciplinar,
 } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
@@ -56,6 +55,18 @@ function BadgeEvento({ tipo }: { tipo: TipoEvento }) {
   return <Badge className={className}>{label}</Badge>;
 }
 
+function formatarDataEvento(evento: EventoHistorico): string {
+  if (evento.tipo === "infracao" || evento.tipo === "merito") {
+    return new Date(evento.data).toLocaleString("pt-BR");
+  }
+  // Falta e não entrega só têm data (sem hora). new Date("aaaa-mm-dd") é
+  // interpretado como meia-noite UTC, que ao converter pro fuso local pode
+  // "voltar" pro dia anterior — por isso formatamos o texto direto, sem
+  // passar por Date/toLocaleString.
+  const [ano, mes, dia] = evento.data.split("-");
+  return `${dia}/${mes}/${ano}`;
+}
+
 function HistoricoContent() {
   const { user } = useAuth();
   const podeExcluir = user?.papel === "admin_escola" || user?.papel === "coordenacao";
@@ -64,7 +75,6 @@ function HistoricoContent() {
   const [registros, setRegistros] = useState<RegistroDisciplinar[]>([]);
   const [faltas, setFaltas] = useState<FaltaRead[]>([]);
   const [naoEntregues, setNaoEntregues] = useState<AtividadeNaoEntregueRead[]>([]);
-  const [ranking, setRanking] = useState<RankingItem[]>([]);
   const [configRanking, setConfigRanking] = useState<ConfiguracaoRanking>({ peso_falta: 1, peso_nao_entrega: 0 });
   const [turmaFiltro, setTurmaFiltro] = useState<string>("todas");
   const [buscaNome, setBuscaNome] = useState<string>("");
@@ -72,13 +82,12 @@ function HistoricoContent() {
 
   async function carregar() {
     try {
-      const [a, p, r, f, n, rk, cfg] = await Promise.all([
+      const [a, p, r, f, n, cfg] = await Promise.all([
         api.get<Aluno[]>("/alunos"),
         api.get<Punicao[]>("/punicoes"),
         api.get<RegistroDisciplinar[]>("/registros"),
         api.get<FaltaRead[]>("/faltas"),
         api.get<AtividadeNaoEntregueRead[]>("/atividades/nao-entregues"),
-        api.get<RankingItem[]>("/ranking"),
         api.get<ConfiguracaoRanking>("/configuracao-ranking"),
       ]);
       setAlunos(a.sort((x, y) => x.nome.localeCompare(y.nome)));
@@ -86,7 +95,6 @@ function HistoricoContent() {
       setRegistros(r);
       setFaltas(f);
       setNaoEntregues(n);
-      setRanking(rk);
       setConfigRanking(cfg);
     } catch (err) {
       setErro(err instanceof ApiError ? err.message : "Erro ao carregar histórico");
@@ -121,8 +129,6 @@ function HistoricoContent() {
       })
       .filter((a) => a.nome.toLowerCase().includes(buscaNome.trim().toLowerCase()));
   }, [alunos, turmaFiltro, buscaNome]);
-
-  const rankingPorAluno = useMemo(() => new Map(ranking.map((item) => [item.aluno_id, item])), [ranking]);
 
   const eventosPorAluno = useMemo(() => {
     const mapa = new Map<number, EventoHistorico[]>();
@@ -207,7 +213,6 @@ function HistoricoContent() {
       <div className="space-y-4">
         {alunosExibidos.map((aluno) => {
           const eventos = eventosPorAluno.get(aluno.id) ?? [];
-          const rankingAluno = rankingPorAluno.get(aluno.id);
           return (
             <Card key={aluno.id}>
               <CardHeader className="flex-row items-center justify-between border-b pb-3">
@@ -220,16 +225,9 @@ function HistoricoContent() {
                   </p>
                   <p className="text-xs text-muted-foreground">Status atual: {calcularStatus(aluno.pontos_atuais, punicoes)}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  {rankingAluno && (
-                    <span className="text-sm font-semibold px-3 py-1 rounded-full bg-amber-100 text-amber-700" title="Pontuação no Ranking de Mérito">
-                      Ranking: {rankingAluno.pontuacao} pts
-                    </span>
-                  )}
-                  <span className="text-sm font-semibold px-3 py-1 rounded-full bg-primary text-primary-foreground">
-                    {aluno.pontos_atuais} pontos
-                  </span>
-                </div>
+                <span className="text-sm font-semibold px-3 py-1 rounded-full bg-primary text-primary-foreground">
+                  {aluno.pontos_atuais} pontos
+                </span>
               </CardHeader>
               <CardContent>
                 {eventos.length === 0 ? (
@@ -244,7 +242,7 @@ function HistoricoContent() {
                             <p className="text-sm font-medium text-foreground">{evento.descricao}</p>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(evento.data).toLocaleString("pt-BR")}
+                            {formatarDataEvento(evento)}
                             {evento.professorNome ? ` — Professor(a): ${evento.professorNome}` : ""}
                             {evento.observacao ? ` — ${evento.observacao}` : ""}
                           </p>

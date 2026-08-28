@@ -45,6 +45,23 @@ def montar_mensagem_infracao(
     )
 
 
+def montar_mensagem_falta(
+    escola_nome: str,
+    aluno_nome: str,
+    data_str: str,
+    disciplinas: list[str],
+) -> str:
+    detalhe_disciplinas = f"\n• *Disciplina(s):* {', '.join(disciplinas)}" if disciplinas else ""
+    return (
+        f"📋 *AVISO DE FALTA* 📋\n\n"
+        f"Prezado(a) responsável por *{aluno_nome}*,\n\n"
+        f"Informamos que o(a) aluno(a) não compareceu à aula em *{data_str}*.{detalhe_disciplinas}\n\n"
+        f"Caso a falta já tenha uma justificativa, favor desconsiderar esta mensagem.\n\n"
+        f"Atenciosamente,\n"
+        f"{escola_nome}."
+    )
+
+
 def montar_mensagem_merito(
     escola_nome: str,
     aluno_nome: str,
