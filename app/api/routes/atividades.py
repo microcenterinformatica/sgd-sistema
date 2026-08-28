@@ -2,7 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import select
+from sqlmodel import func, select
 
 from app.api.deps import CurrentUserDep, SessionDep
 from app.core.permissoes import buscar_professor_do_usuario, verificar_permissao_turma_disciplina
@@ -48,7 +48,9 @@ def _get_atividade_da_escola(session: SessionDep, atividade_id: int, escola_id: 
     return atividade
 
 
-def _montar_atividade_read(atividade: Atividade, categoria: CategoriaAtividade) -> AtividadeRead:
+def _montar_atividade_read(
+    atividade: Atividade, categoria: CategoriaAtividade, total_lancamentos: int = 0
+) -> AtividadeRead:
     return AtividadeRead(
         id=atividade.id,
         escola_id=atividade.escola_id,
@@ -63,7 +65,14 @@ def _montar_atividade_read(atividade: Atividade, categoria: CategoriaAtividade) 
         data=atividade.data,
         data_entrega=atividade.data_entrega,
         ativo=atividade.ativo,
+        total_lancamentos=total_lancamentos,
     )
+
+
+def _contar_lancamentos(session: SessionDep, atividade_id: int) -> int:
+    return session.exec(
+        select(func.count()).where(Lancamento.atividade_id == atividade_id)
+    ).one()
 
 
 def _get_categoria_valida(
@@ -124,7 +133,7 @@ def atualizar_atividade(
     session.commit()
     session.refresh(atividade)
     categoria = session.get(CategoriaAtividade, atividade.categoria_id)
-    return _montar_atividade_read(atividade, categoria)
+    return _montar_atividade_read(atividade, categoria, _contar_lancamentos(session, atividade.id))
 
 
 @router.delete("/atividades/{atividade_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -159,7 +168,21 @@ def listar_atividades(
         query = query.where(Atividade.data_entrega <= data_fim)
     query = query.order_by(Atividade.data.desc())
     linhas = session.exec(query).all()
-    return [_montar_atividade_read(atividade, categoria) for atividade, categoria in linhas]
+
+    atividade_ids = [atividade.id for atividade, _ in linhas]
+    contagens: dict[int, int] = {}
+    if atividade_ids:
+        for atividade_id, total in session.exec(
+            select(Lancamento.atividade_id, func.count())
+            .where(Lancamento.atividade_id.in_(atividade_ids))
+            .group_by(Lancamento.atividade_id)
+        ).all():
+            contagens[atividade_id] = total
+
+    return [
+        _montar_atividade_read(atividade, categoria, contagens.get(atividade.id, 0))
+        for atividade, categoria in linhas
+    ]
 
 
 @router.get("/turmas", response_model=list[str])

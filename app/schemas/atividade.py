@@ -53,6 +53,7 @@ class AtividadeRead(SQLModel):
     data: date
     data_entrega: Optional[date]
     ativo: bool
+    total_lancamentos: int = 0
 
 
 class AtividadeResumoItem(SQLModel):

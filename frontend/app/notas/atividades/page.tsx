@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, CheckCircle2 } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
 import { Aluno, Atividade, AtividadeResumoItem, BoletimAluno, CategoriaAtividade, Punicao } from "@/lib/types";
@@ -149,7 +149,14 @@ function ListaAtividades({ atividades }: { atividades: Atividade[] }) {
                   {a.data_entrega && <> · entrega até {formatarData(a.data_entrega)}</>}
                 </p>
               </div>
-              <span className="text-xs font-medium text-muted-foreground">Registrar →</span>
+              {a.total_lancamentos > 0 ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full">
+                  <CheckCircle2 className="size-3.5" />
+                  Registrado
+                </span>
+              ) : (
+                <span className="text-xs font-medium text-muted-foreground">Registrar →</span>
+              )}
             </Link>
           </li>
         ))}

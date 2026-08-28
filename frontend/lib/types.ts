@@ -113,6 +113,7 @@ export interface Atividade {
   data: string;
   data_entrega: string | null;
   ativo: boolean;
+  total_lancamentos: number;
 }
 
 export interface CategoriaAtividade {
