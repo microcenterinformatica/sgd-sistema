@@ -64,6 +64,7 @@ const columns: ColumnDef<Aluno>[] = [
   {
     id: "acoes",
     header: "",
+    meta: { sticky: true },
     cell: ({ row }) => (
       <Link href={`/alunos/${row.original.id}#registrar`} className={buttonVariants({ size: "sm" })}>
         Registrar
