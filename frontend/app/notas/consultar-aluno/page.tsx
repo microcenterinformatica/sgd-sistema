@@ -346,7 +346,7 @@ function ConteudoAgrupadoCard({ grupos }: { grupos: GrupoConteudo[] }) {
 
 function ConsultarAlunoContent() {
   const { dados: dadosAtribuicoes, turmas, disciplinasDaTurma } = useAtribuicoes();
-  const [todasDisciplinas, setTodasDisciplinas] = useState(false);
+  const [todasDisciplinas, setTodasDisciplinas] = useState(true);
   const [conteudosAgrupados, setConteudosAgrupados] = useState<GrupoConteudo[] | null>(null);
   const [turma, setTurma] = useState("");
   const [disciplinaId, setDisciplinaId] = useState<number | "">("");
@@ -354,7 +354,7 @@ function ConsultarAlunoContent() {
   const [alunoId, setAlunoId] = useState<number | "todos" | "">("");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
-  const [aba, setAba] = useState<Aba>("periodo");
+  const [aba, setAba] = useState<Aba>("conteudo");
 
   const [lancamentos, setLancamentos] = useState<LancamentoAlunoRead[] | null>(null);
   const [boletim, setBoletim] = useState<BoletimAluno | null>(null);
