@@ -196,7 +196,11 @@ def listar_nao_entregues(session: SessionDep, usuario_atual: CurrentUserDep):
         select(Lancamento, Atividade, Disciplina)
         .join(Atividade, Lancamento.atividade_id == Atividade.id)
         .join(Disciplina, Atividade.disciplina_id == Disciplina.id)
-        .where(Atividade.escola_id == usuario_atual.escola_id, Lancamento.fez == False)  # noqa: E712
+        .where(
+            Atividade.escola_id == usuario_atual.escola_id,
+            Atividade.ativo == True,  # noqa: E712
+            Lancamento.fez == False,  # noqa: E712
+        )
     ).all()
     return [
         AtividadeNaoEntregueRead(

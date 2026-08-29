@@ -18,6 +18,8 @@ from app.schemas.registro_disciplinar import (
     RegistroInfracaoCreate,
     RegistroInfracaoUpdate,
     RegistroMeritoCreate,
+    RegistroMeritoTurmaCreate,
+    RegistroMeritoTurmaResponse,
 )
 from app.services.pontuacao import aplicar_infracao, aplicar_merito, recalcular_apos_edicao
 from app.services.whatsapp import gerar_link_whatsapp, montar_mensagem_infracao, montar_mensagem_merito
@@ -25,6 +27,8 @@ from app.services.whatsapp import gerar_link_whatsapp, montar_mensagem_infracao,
 router = APIRouter(prefix="/registros", tags=["registros"])
 
 GESTAO_ROLES = (PapelUsuario.admin_escola, PapelUsuario.coordenacao)
+DESCRICAO_MERITO_TURMA = "PONTO DE MÉRITO/BÔNUS (turma)"
+DESCRICAO_REMOCAO_MERITO_TURMA = "REMOÇÃO DE MÉRITO (turma)"
 
 
 def _get_aluno_da_escola(session: SessionDep, aluno_id: int, escola_id: int) -> Aluno:
@@ -157,6 +161,61 @@ def registrar_merito(dados: RegistroMeritoCreate, session: SessionDep, usuario_a
     )
 
 
+def _lancar_merito_turma(
+    session: SessionDep,
+    usuario_atual: CurrentUserDep,
+    dados: RegistroMeritoTurmaCreate,
+    descricao: str,
+    peso_por_aluno: int,
+) -> RegistroMeritoTurmaResponse:
+    if dados.pontos_bonus <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="pontos_bonus deve ser positivo")
+
+    verificar_permissao_turma(session, usuario_atual, dados.turma)
+
+    alunos = session.exec(
+        select(Aluno).where(Aluno.escola_id == usuario_atual.escola_id, Aluno.turma == dados.turma)
+    ).all()
+    if not alunos:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhum aluno encontrado nessa turma")
+
+    if dados.professor_id is not None:
+        _get_professor_nome(session, dados.professor_id, usuario_atual.escola_id, usuario_atual.nome)
+
+    agora = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    for aluno in alunos:
+        registro = RegistroDisciplinar(
+            aluno_id=aluno.id,
+            tipo=TipoRegistro.merito,
+            regra_id=None,
+            descricao=descricao,
+            peso=peso_por_aluno,
+            data_hora=agora,
+            observacao=dados.observacao,
+            professor_id=dados.professor_id,
+            registrado_por_usuario_id=usuario_atual.id,
+        )
+        # Mérito de turma (dar ou remover) conta só no Ranking (via soma do
+        # histórico), não abate/soma a pontuação disciplinar individual —
+        # diferente do mérito lançado aluno a aluno (aplicar_merito).
+        session.add(registro)
+
+    session.commit()
+
+    return RegistroMeritoTurmaResponse(turma=dados.turma, total_alunos=len(alunos))
+
+
+@router.post("/merito-turma", response_model=RegistroMeritoTurmaResponse, status_code=status.HTTP_201_CREATED)
+def registrar_merito_turma(dados: RegistroMeritoTurmaCreate, session: SessionDep, usuario_atual: CurrentUserDep):
+    return _lancar_merito_turma(session, usuario_atual, dados, DESCRICAO_MERITO_TURMA, -dados.pontos_bonus)
+
+
+@router.post("/remover-merito-turma", response_model=RegistroMeritoTurmaResponse, status_code=status.HTTP_201_CREATED)
+def remover_merito_turma(dados: RegistroMeritoTurmaCreate, session: SessionDep, usuario_atual: CurrentUserDep):
+    return _lancar_merito_turma(session, usuario_atual, dados, DESCRICAO_REMOCAO_MERITO_TURMA, dados.pontos_bonus)
+
+
 @router.put("/{registro_id}", response_model=RegistroDisciplinarResponse)
 def editar_registro_infracao(
     registro_id: int, dados: RegistroInfracaoUpdate, session: SessionDep, usuario_atual: CurrentUserDep
@@ -214,7 +273,14 @@ def excluir_registro(
 
 @router.get("", response_model=list[RegistroDisciplinarRead])
 def listar_registros(session: SessionDep, usuario_atual: CurrentUserDep, aluno_id: int | None = None):
-    query = select(RegistroDisciplinar).join(Aluno).where(Aluno.escola_id == usuario_atual.escola_id)
+    query = (
+        select(RegistroDisciplinar)
+        .join(Aluno)
+        .where(
+            Aluno.escola_id == usuario_atual.escola_id,
+            RegistroDisciplinar.descricao.not_in([DESCRICAO_MERITO_TURMA, DESCRICAO_REMOCAO_MERITO_TURMA]),
+        )
+    )
     if aluno_id is not None:
         query = query.where(RegistroDisciplinar.aluno_id == aluno_id)
     query = query.order_by(RegistroDisciplinar.data_hora.desc())

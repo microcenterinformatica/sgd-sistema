@@ -97,6 +97,11 @@ export interface RegistroDisciplinarResponse {
   whatsapp_link: string | null;
 }
 
+export interface RegistroMeritoTurmaResponse {
+  turma: string;
+  total_alunos: number;
+}
+
 export type TipoAtividade = "prova" | "atividade";
 
 export interface Atividade {

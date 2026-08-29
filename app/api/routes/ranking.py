@@ -3,6 +3,7 @@ from sqlmodel import func, select
 
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
 from app.models.aluno import Aluno
+from app.models.atividade import Atividade
 from app.models.configuracao_ranking import ConfiguracaoRanking
 from app.models.lancamento import Lancamento
 from app.models.registro_disciplinar import RegistroDisciplinar, TipoRegistro
@@ -56,7 +57,12 @@ def _contar_nao_entregas(session: SessionDep, escola_id: int) -> dict[int, int]:
     linhas = session.exec(
         select(Lancamento.aluno_id, func.count())
         .join(Aluno, Aluno.id == Lancamento.aluno_id)
-        .where(Aluno.escola_id == escola_id, Lancamento.fez == False)  # noqa: E712
+        .join(Atividade, Atividade.id == Lancamento.atividade_id)
+        .where(
+            Aluno.escola_id == escola_id,
+            Atividade.ativo == True,  # noqa: E712
+            Lancamento.fez == False,  # noqa: E712
+        )
         .group_by(Lancamento.aluno_id)
     ).all()
     return dict(linhas)

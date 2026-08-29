@@ -20,6 +20,18 @@ class RegistroMeritoCreate(SQLModel):
     observacao: Optional[str] = None
 
 
+class RegistroMeritoTurmaCreate(SQLModel):
+    turma: str
+    pontos_bonus: int
+    professor_id: Optional[int] = None
+    observacao: Optional[str] = None
+
+
+class RegistroMeritoTurmaResponse(SQLModel):
+    turma: str
+    total_alunos: int
+
+
 class RegistroInfracaoUpdate(SQLModel):
     regra_id: int
     professor_id: Optional[int] = None
