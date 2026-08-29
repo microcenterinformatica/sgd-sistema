@@ -52,12 +52,12 @@ import {
 type Aba = "periodo" | "anual" | "frequencia" | "atividades" | "disciplina" | "conteudo";
 
 const ABAS: { value: Aba; label: string; icon: typeof FileText; descricao: string }[] = [
-  { value: "periodo", label: "Boletim do período", icon: FileText, descricao: "Nota final calculada num intervalo de datas, por aluno ou pela turma toda." },
+  { value: "conteudo", label: "Conteúdo", icon: BookOpen, descricao: "O que foi lecionado em cada aula da disciplina." },
   { value: "anual", label: "Boletim anual", icon: Award, descricao: "Boletim completo do ano de um aluno, com exportação em PDF." },
   { value: "frequencia", label: "Frequência", icon: CalendarCheck, descricao: "Faltas registradas no período, por aluno ou pela turma toda." },
   { value: "atividades", label: "Atividades", icon: ListChecks, descricao: "O que foi lançado e entregue, por aluno, ou o % de conclusão da turma." },
   { value: "disciplina", label: "Disciplina", icon: Scale, descricao: "Infrações e méritos registrados, por aluno ou pela turma toda." },
-  { value: "conteudo", label: "Conteúdo", icon: BookOpen, descricao: "O que foi lecionado em cada aula da disciplina." },
+  { value: "periodo", label: "Boletim do período", icon: FileText, descricao: "Nota final calculada num intervalo de datas, por aluno ou pela turma toda." },
 ];
 
 const ROTULOS_TIPO: Record<TipoAtividade, string> = {

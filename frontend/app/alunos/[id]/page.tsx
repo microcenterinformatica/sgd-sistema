@@ -101,7 +101,7 @@ function RegistrarInfracao({
   return (
     <Card className="border-t-4 border-t-destructive">
       <CardHeader>
-        <CardTitle className="text-xl">🚨 Registrar infração</CardTitle>
+        <CardTitle className="text-xl">Registrar infração</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -177,7 +177,7 @@ function RegistrarMerito({
   return (
     <Card className="border-t-4 border-t-amber-500">
       <CardHeader>
-        <CardTitle className="text-xl">🌟 Registrar mérito</CardTitle>
+        <CardTitle className="text-xl">Registrar mérito</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
