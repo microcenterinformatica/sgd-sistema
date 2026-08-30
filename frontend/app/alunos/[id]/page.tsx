@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import RequireAuth from "@/components/RequireAuth";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, baixarArquivo } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { Aluno, Professor, RegistroDisciplinar, RegistroDisciplinarResponse, RegraInfracao } from "@/lib/types";
@@ -277,6 +277,8 @@ function AlunoDetailContent() {
   const [registros, setRegistros] = useState<RegistroDisciplinar[]>([]);
   const [ultimoWhatsapp, setUltimoWhatsapp] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [diasRelatorio, setDiasRelatorio] = useState("7");
+  const [gerandoPdf, setGerandoPdf] = useState(false);
 
   const carregarRegistros = useCallback(async () => {
     const dados = await api.get<RegistroDisciplinar[]>(`/registros?aluno_id=${alunoId}`);
@@ -308,6 +310,21 @@ function AlunoDetailContent() {
     carregarRegistros();
   }
 
+  async function baixarRelatorioPdf() {
+    if (!aluno) return;
+    setGerandoPdf(true);
+    try {
+      await baixarArquivo(
+        `/alunos/${aluno.id}/relatorio-disciplinar?dias=${diasRelatorio}`,
+        `relatorio_${aluno.matricula}.pdf`
+      );
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao gerar relatório");
+    } finally {
+      setGerandoPdf(false);
+    }
+  }
+
   if (erro) return <p className="p-6 text-destructive">{erro}</p>;
   if (!aluno) return <p className="p-6 text-muted-foreground">Carregando...</p>;
 
@@ -331,6 +348,28 @@ function AlunoDetailContent() {
           {aluno.pontos_atuais} pontos
         </span>
       </div>
+
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-3 py-4">
+          <p className="text-sm text-muted-foreground mr-auto">
+            Relatório em PDF do histórico disciplinar, para anexar numa mensagem ao responsável.
+          </p>
+          <Select value={diasRelatorio} onValueChange={(v) => setDiasRelatorio(v ?? "7")}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Últimos 7 dias</SelectItem>
+              <SelectItem value="15">Últimos 15 dias</SelectItem>
+              <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="3650">Histórico completo</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={baixarRelatorioPdf} disabled={gerandoPdf}>
+            {gerandoPdf ? "Gerando..." : "Baixar relatório (PDF)"}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Dialog open={!!ultimoWhatsapp} onOpenChange={(open) => !open && setUltimoWhatsapp(null)}>
         <DialogContent>

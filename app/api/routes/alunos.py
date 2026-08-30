@@ -1,17 +1,29 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import date, datetime, timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
+from app.api.routes.registros import DESCRICAO_MERITO_TURMA, DESCRICAO_REMOCAO_MERITO_TURMA
 from app.core.ano_letivo import ano_letivo_atual
+from app.core.permissoes import segmento_da_turma
 from app.models.aluno import Aluno
+from app.models.atividade import Atividade
+from app.models.disciplina import Disciplina
+from app.models.escola import Escola
+from app.models.lancamento import Lancamento
 from app.models.matricula_turma import MatriculaTurma
+from app.models.professor import Professor
+from app.models.punicao import Punicao
 from app.models.registro_disciplinar import RegistroDisciplinar
-from app.models.turma import Turma
-from app.models.usuario import PapelUsuario
+from app.models.registro_falta import RegistroFalta
+from app.models.turma import SegmentoTurma, Turma
+from app.models.usuario import PapelUsuario, Usuario
 from app.schemas.aluno import AlunoCreate, AlunoRead, AlunoUpdate
 from app.services.pontuacao import aplicar_recuperacoes_pendentes
+from app.services.relatorio_pdf import EventoRelatorio, gerar_pdf_historico_aluno
 
 router = APIRouter(prefix="/alunos", tags=["alunos"])
 
@@ -102,6 +114,113 @@ def obter_aluno(aluno_id: int, session: SessionDep, usuario_atual: CurrentUserDe
     aluno = _get_aluno_da_escola(session, aluno_id, usuario_atual.escola_id)
     aplicar_recuperacoes_pendentes(session, [aluno], usuario_atual.escola_id)
     return aluno
+
+
+def _situacao_aluno(session: SessionDep, escola_id: int, pontos: int) -> str:
+    punicao = session.exec(
+        select(Punicao)
+        .where(Punicao.escola_id == escola_id, Punicao.ativo == True, Punicao.pontuacao_minima <= pontos)  # noqa: E712
+        .order_by(Punicao.pontuacao_minima.desc())
+    ).first()
+    return punicao.descricao if punicao else "Sem conduta"
+
+
+@router.get("/{aluno_id}/relatorio-disciplinar")
+def gerar_relatorio_disciplinar(
+    aluno_id: int, session: SessionDep, usuario_atual: CurrentUserDep, dias: int = 7
+):
+    """Relatório em PDF com infrações, méritos, faltas não justificadas e atividades não
+    entregues do aluno num período (padrão: últimos 7 dias) — pensado para anexar
+    manualmente numa mensagem semanal ao responsável via WhatsApp."""
+    aluno = _get_aluno_da_escola(session, aluno_id, usuario_atual.escola_id)
+    aplicar_recuperacoes_pendentes(session, [aluno], usuario_atual.escola_id)
+    escola = session.get(Escola, usuario_atual.escola_id)
+
+    hoje = date.today()
+    periodo_inicio = hoje - timedelta(days=max(dias, 1) - 1)
+    inicio_dt = datetime.combine(periodo_inicio, datetime.min.time())
+    fim_dt = datetime.combine(hoje, datetime.max.time())
+
+    registros = session.exec(
+        select(RegistroDisciplinar).where(
+            RegistroDisciplinar.aluno_id == aluno_id,
+            RegistroDisciplinar.data_hora >= inicio_dt,
+            RegistroDisciplinar.data_hora <= fim_dt,
+            RegistroDisciplinar.descricao.not_in([DESCRICAO_MERITO_TURMA, DESCRICAO_REMOCAO_MERITO_TURMA]),
+        )
+    ).all()
+
+    professores_por_id = {
+        p.id: p for p in session.exec(select(Professor).where(Professor.escola_id == usuario_atual.escola_id))
+    }
+    usuarios_por_id = {
+        u.id: u for u in session.exec(select(Usuario).where(Usuario.escola_id == usuario_atual.escola_id))
+    }
+
+    def professor_nome_de(registro: RegistroDisciplinar) -> str | None:
+        if registro.professor_id is not None:
+            professor = professores_por_id.get(registro.professor_id)
+            return professor.nome if professor else None
+        usuario = usuarios_por_id.get(registro.registrado_por_usuario_id)
+        return usuario.nome if usuario else None
+
+    eventos = [
+        EventoRelatorio(
+            data=r.data_hora,
+            tipo=r.tipo.value,
+            descricao=r.descricao,
+            peso=r.peso,
+            professor_nome=professor_nome_de(r),
+            observacao=r.observacao,
+        )
+        for r in registros
+    ]
+
+    condicoes_falta = [
+        RegistroFalta.aluno_id == aluno_id,
+        RegistroFalta.justificada == False,  # noqa: E712
+        RegistroFalta.data >= periodo_inicio,
+        RegistroFalta.data <= hoje,
+    ]
+    if aluno.turma and segmento_da_turma(session, usuario_atual.escola_id, aluno.turma) == SegmentoTurma.fundamental_1:
+        condicoes_falta.append(RegistroFalta.disciplina_id.is_(None))
+    faltas = session.exec(select(RegistroFalta).where(*condicoes_falta)).all()
+    for f in faltas:
+        eventos.append(EventoRelatorio(data=f.data, tipo="falta", descricao="Falta não justificada"))
+
+    nao_entregas = session.exec(
+        select(Lancamento, Atividade, Disciplina)
+        .join(Atividade, Lancamento.atividade_id == Atividade.id)
+        .join(Disciplina, Atividade.disciplina_id == Disciplina.id)
+        .where(
+            Lancamento.aluno_id == aluno_id,
+            Atividade.escola_id == usuario_atual.escola_id,
+            Atividade.ativo == True,  # noqa: E712
+            Lancamento.fez == False,  # noqa: E712
+        )
+    ).all()
+    for lancamento, atividade, disciplina in nao_entregas:
+        data_evento = atividade.data_entrega or atividade.data
+        if periodo_inicio <= data_evento <= hoje:
+            eventos.append(
+                EventoRelatorio(
+                    data=data_evento,
+                    tipo="nao_entrega",
+                    descricao=f"Não entregou: {atividade.titulo} ({disciplina.nome})",
+                )
+            )
+
+    eventos.sort(key=lambda e: e.data if isinstance(e.data, datetime) else datetime.combine(e.data, datetime.min.time()))
+
+    situacao = _situacao_aluno(session, usuario_atual.escola_id, aluno.pontos_atuais)
+    pdf_bytes = gerar_pdf_historico_aluno(escola, aluno, eventos, periodo_inicio, hoje, situacao)
+
+    nome_arquivo = f"relatorio_{aluno.matricula}_{hoje.isoformat()}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+    )
 
 
 @router.put("/{aluno_id}", response_model=AlunoRead)

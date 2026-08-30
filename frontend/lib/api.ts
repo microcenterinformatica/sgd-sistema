@@ -11,6 +11,36 @@ function getToken(): string | null {
   return localStorage.getItem("sgd_token");
 }
 
+export async function baixarArquivo(path: string, nomeArquivoPadrao: string): Promise<void> {
+  const token = getToken();
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(`${API_URL}${path}`, { headers });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const data = await res.json();
+      detail = data.detail ?? detail;
+    } catch {
+      // resposta sem corpo JSON
+    }
+    throw new ApiError(res.status, detail);
+  }
+
+  const disposition = res.headers.get("Content-Disposition");
+  const nomeArquivo = disposition?.match(/filename="?([^"]+)"?/)?.[1] ?? nomeArquivoPadrao;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nomeArquivo;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers = new Headers(options.headers);
