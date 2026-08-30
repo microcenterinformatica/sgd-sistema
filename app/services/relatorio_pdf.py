@@ -39,7 +39,7 @@ class EventoRelatorio:
 
 def _formatar_data(valor: date | datetime) -> str:
     if isinstance(valor, datetime):
-        return valor.strftime("%d/%m/%Y %H:%M")
+        return valor.strftime("%d/%m/%Y<br/>%H:%M")
     return valor.strftime("%d/%m/%Y")
 
 
@@ -95,7 +95,7 @@ def gerar_pdf_historico_aluno(
             pontos = "—" if evento.peso is None else (f"+{evento.peso}" if evento.peso >= 0 else str(evento.peso))
             linhas.append(
                 [
-                    _formatar_data(evento.data),
+                    Paragraph(_formatar_data(evento.data), celula),
                     Paragraph(ROTULO_TIPO_EVENTO[evento.tipo], celula),
                     Paragraph(evento.descricao, celula),
                     pontos,
@@ -105,7 +105,7 @@ def gerar_pdf_historico_aluno(
 
         tabela = Table(
             linhas,
-            colWidths=[2.3 * cm, 2.1 * cm, 5.4 * cm, 1.7 * cm, 5.3 * cm],
+            colWidths=[2.1 * cm, 2.0 * cm, 5.5 * cm, 1.6 * cm, 5.6 * cm],
             repeatRows=1,
         )
         estilo_tabela = [
