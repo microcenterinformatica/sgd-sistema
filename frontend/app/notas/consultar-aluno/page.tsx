@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-import { Award, BookOpen, CalendarCheck, Download, FileText, ListChecks, Scale } from "lucide-react";
+import { Award, BookOpen, CalendarCheck, ClipboardList, Download, FileText, ListChecks, Scale } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, baixarArquivo } from "@/lib/api";
 import { calcularStatus } from "@/lib/conduta";
 import {
   Aluno,
@@ -43,13 +43,14 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-type Aba = "periodo" | "anual" | "frequencia" | "atividades" | "disciplina" | "conteudo";
+type Aba = "periodo" | "anual" | "frequencia" | "atividades" | "disciplina" | "historico_disciplinar" | "conteudo";
 
 const ABAS: { value: Aba; label: string; icon: typeof FileText; descricao: string }[] = [
   { value: "conteudo", label: "Conteúdo", icon: BookOpen, descricao: "O que foi lecionado em cada aula da disciplina." },
@@ -57,6 +58,12 @@ const ABAS: { value: Aba; label: string; icon: typeof FileText; descricao: strin
   { value: "frequencia", label: "Frequência", icon: CalendarCheck, descricao: "Faltas registradas no período, por aluno ou pela turma toda." },
   { value: "atividades", label: "Atividades", icon: ListChecks, descricao: "O que foi lançado e entregue, por aluno, ou o % de conclusão da turma." },
   { value: "disciplina", label: "Disciplina", icon: Scale, descricao: "Infrações e méritos registrados, por aluno ou pela turma toda." },
+  {
+    value: "historico_disciplinar",
+    label: "Histórico Disciplinar",
+    icon: ClipboardList,
+    descricao: "Baixe o relatório em PDF do histórico disciplinar do aluno, pronto pra enviar ao responsável.",
+  },
   { value: "periodo", label: "Boletim do período", icon: FileText, descricao: "Nota final calculada num intervalo de datas, por aluno ou pela turma toda." },
 ];
 
@@ -369,6 +376,9 @@ function ConsultarAlunoContent() {
   const [alunosTurmaCompletos, setAlunosTurmaCompletos] = useState<Aluno[]>([]);
   const [conteudos, setConteudos] = useState<ConteudoAulaRead[] | null>(null);
   const [punicoes, setPunicoes] = useState<Punicao[]>([]);
+  const [diasRelatorio, setDiasRelatorio] = useState("7");
+  const [gerandoRelatorioPdf, setGerandoRelatorioPdf] = useState(false);
+  const [linkWhatsappRelatorio, setLinkWhatsappRelatorio] = useState<string | null>(null);
 
   useEffect(() => {
     api.get<Punicao[]>("/punicoes").then(setPunicoes).catch(() => {});
@@ -538,6 +548,50 @@ function ConsultarAlunoContent() {
     }
   }
 
+  async function executarDownloadRelatorio() {
+    if (typeof alunoId !== "number") return;
+    const alunoSelecionado = alunos.find((a) => a.id === alunoId);
+    try {
+      await baixarArquivo(
+        `/alunos/${alunoId}/relatorio-disciplinar?dias=${diasRelatorio}`,
+        `relatorio_${alunoSelecionado?.matricula ?? alunoId}.pdf`
+      );
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao gerar relatório");
+    } finally {
+      setGerandoRelatorioPdf(false);
+    }
+  }
+
+  async function baixarRelatorioDisciplinar() {
+    if (typeof alunoId !== "number") return;
+    setGerandoRelatorioPdf(true);
+    try {
+      const resp = await api.get<{ whatsapp_link: string | null }>(
+        `/alunos/${alunoId}/relatorio-disciplinar-whatsapp?dias=${diasRelatorio}`
+      );
+      if (resp.whatsapp_link) {
+        setLinkWhatsappRelatorio(resp.whatsapp_link);
+        setGerandoRelatorioPdf(false);
+        return;
+      }
+      await executarDownloadRelatorio();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao gerar relatório");
+      setGerandoRelatorioPdf(false);
+    }
+  }
+
+  async function confirmarEnvioWhatsappRelatorio(enviar: boolean) {
+    const link = linkWhatsappRelatorio;
+    setLinkWhatsappRelatorio(null);
+    setGerandoRelatorioPdf(true);
+    await executarDownloadRelatorio();
+    if (enviar && link) {
+      window.open(link, "_blank", "noopener,noreferrer");
+    }
+  }
+
   async function consultarConteudoTodas() {
     if (!dadosAtribuicoes) return;
     setConteudosAgrupados(null);
@@ -598,7 +652,7 @@ function ConsultarAlunoContent() {
 
   const modoTodasDisciplinas = aba === "conteudo" && todasDisciplinas;
   const mostrarTurma = !modoTodasDisciplinas;
-  const mostrarDisciplina = aba !== "anual" && aba !== "disciplina";
+  const mostrarDisciplina = aba !== "anual" && aba !== "disciplina" && aba !== "historico_disciplinar";
   const mostrarAluno = aba !== "conteudo";
   const mostrarPeriodo = aba === "periodo" || aba === "frequencia" || aba === "atividades" || aba === "conteudo";
   const consultarDesabilitado =
@@ -739,6 +793,32 @@ function ConsultarAlunoContent() {
                 </p>
               )}
             </div>
+          ) : aba === "historico_disciplinar" ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <Select value={diasRelatorio} onValueChange={(v) => setDiasRelatorio(v ?? "7")}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">Últimos 7 dias</SelectItem>
+                  <SelectItem value="15">Últimos 15 dias</SelectItem>
+                  <SelectItem value="30">Últimos 30 dias</SelectItem>
+                  <SelectItem value="3650">Histórico completo</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                onClick={baixarRelatorioDisciplinar}
+                disabled={typeof alunoId !== "number" || gerandoRelatorioPdf}
+              >
+                {gerandoRelatorioPdf ? "Gerando..." : "Baixar relatório (PDF)"}
+              </Button>
+              {alunoId === "todos" && (
+                <p className="text-xs text-muted-foreground w-full">
+                  Selecione um aluno específico (não &quot;todos&quot;) para baixar o relatório.
+                </p>
+              )}
+            </div>
           ) : (
             <Button onClick={consultar} disabled={consultarDesabilitado}>
               Consultar
@@ -746,6 +826,29 @@ function ConsultarAlunoContent() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={!!linkWhatsappRelatorio}
+        onOpenChange={(open) => !open && confirmarEnvioWhatsappRelatorio(false)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enviar relatório ao responsável?</DialogTitle>
+            <DialogDescription>
+              O PDF será baixado agora. Deseja também abrir o WhatsApp do responsável com uma
+              mensagem pronta, pra você só anexar o arquivo baixado na conversa?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => confirmarEnvioWhatsappRelatorio(false)}>
+              Não, só baixar
+            </Button>
+            <Button variant="success" onClick={() => confirmarEnvioWhatsappRelatorio(true)}>
+              Sim, enviar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {aba === "anual" && boletimAnual && (
         <Card>

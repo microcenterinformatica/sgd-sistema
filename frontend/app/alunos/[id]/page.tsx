@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import RequireAuth from "@/components/RequireAuth";
-import { api, ApiError, baixarArquivo } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { Aluno, Professor, RegistroDisciplinar, RegistroDisciplinarResponse, RegraInfracao } from "@/lib/types";
@@ -277,9 +277,6 @@ function AlunoDetailContent() {
   const [registros, setRegistros] = useState<RegistroDisciplinar[]>([]);
   const [ultimoWhatsapp, setUltimoWhatsapp] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [diasRelatorio, setDiasRelatorio] = useState("7");
-  const [gerandoPdf, setGerandoPdf] = useState(false);
-  const [linkWhatsappRelatorio, setLinkWhatsappRelatorio] = useState<string | null>(null);
 
   const carregarRegistros = useCallback(async () => {
     const dados = await api.get<RegistroDisciplinar[]>(`/registros?aluno_id=${alunoId}`);
@@ -311,49 +308,6 @@ function AlunoDetailContent() {
     carregarRegistros();
   }
 
-  async function executarDownloadRelatorio() {
-    if (!aluno) return;
-    try {
-      await baixarArquivo(
-        `/alunos/${aluno.id}/relatorio-disciplinar?dias=${diasRelatorio}`,
-        `relatorio_${aluno.matricula}.pdf`
-      );
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erro ao gerar relatório");
-    } finally {
-      setGerandoPdf(false);
-    }
-  }
-
-  async function baixarRelatorioPdf() {
-    if (!aluno) return;
-    setGerandoPdf(true);
-    try {
-      const resp = await api.get<{ whatsapp_link: string | null }>(
-        `/alunos/${aluno.id}/relatorio-disciplinar-whatsapp?dias=${diasRelatorio}`
-      );
-      if (resp.whatsapp_link) {
-        setLinkWhatsappRelatorio(resp.whatsapp_link);
-        setGerandoPdf(false);
-        return;
-      }
-      await executarDownloadRelatorio();
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erro ao gerar relatório");
-      setGerandoPdf(false);
-    }
-  }
-
-  async function confirmarEnvioWhatsappRelatorio(enviar: boolean) {
-    const link = linkWhatsappRelatorio;
-    setLinkWhatsappRelatorio(null);
-    setGerandoPdf(true);
-    await executarDownloadRelatorio();
-    if (enviar && link) {
-      window.open(link, "_blank", "noopener,noreferrer");
-    }
-  }
-
   if (erro) return <p className="p-6 text-destructive">{erro}</p>;
   if (!aluno) return <p className="p-6 text-muted-foreground">Carregando...</p>;
 
@@ -372,56 +326,15 @@ function AlunoDetailContent() {
           <Link href="/gestao/alunos" className="text-xs text-primary hover:underline">
             Editar dados do aluno em Gestão de Cadastros →
           </Link>
+          <br />
+          <Link href="/notas/consultar-aluno" className="text-xs text-primary hover:underline">
+            Baixar relatório disciplinar em PDF em Consultas →
+          </Link>
         </div>
         <span className="text-lg font-bold px-4 py-2 rounded-full bg-primary text-primary-foreground shadow-sm">
           {aluno.pontos_atuais} pontos
         </span>
       </div>
-
-      <Card>
-        <CardContent className="flex flex-wrap items-center gap-3 py-4">
-          <p className="text-sm text-muted-foreground mr-auto">
-            Relatório em PDF do histórico disciplinar, para anexar numa mensagem ao responsável.
-          </p>
-          <Select value={diasRelatorio} onValueChange={(v) => setDiasRelatorio(v ?? "7")}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">Últimos 7 dias</SelectItem>
-              <SelectItem value="15">Últimos 15 dias</SelectItem>
-              <SelectItem value="30">Últimos 30 dias</SelectItem>
-              <SelectItem value="3650">Histórico completo</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" onClick={baixarRelatorioPdf} disabled={gerandoPdf}>
-            {gerandoPdf ? "Gerando..." : "Baixar relatório (PDF)"}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Dialog
-        open={!!linkWhatsappRelatorio}
-        onOpenChange={(open) => !open && confirmarEnvioWhatsappRelatorio(false)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Enviar relatório ao responsável?</DialogTitle>
-            <DialogDescription>
-              O PDF será baixado agora. Deseja também abrir o WhatsApp do responsável com uma
-              mensagem pronta, pra você só anexar o arquivo baixado na conversa?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => confirmarEnvioWhatsappRelatorio(false)}>
-              Não, só baixar
-            </Button>
-            <Button variant="success" onClick={() => confirmarEnvioWhatsappRelatorio(true)}>
-              Sim, enviar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={!!ultimoWhatsapp} onOpenChange={(open) => !open && setUltimoWhatsapp(null)}>
         <DialogContent>
