@@ -13,7 +13,7 @@ from app.models.aluno import Aluno
 from app.models.escola import Escola
 
 ROTULO_TIPO_EVENTO = {
-    "infracao": "Conduta",
+    "infracao": "Conduta Indisciplinar",
     "merito": "Mérito",
     "falta": "Falta",
     "nao_entrega": "Não entregue",
@@ -105,7 +105,7 @@ def gerar_pdf_historico_aluno(
 
         tabela = Table(
             linhas,
-            colWidths=[2.1 * cm, 2.0 * cm, 5.5 * cm, 1.6 * cm, 5.6 * cm],
+            colWidths=[2.1 * cm, 2.6 * cm, 4.9 * cm, 1.6 * cm, 5.6 * cm],
             repeatRows=1,
         )
         estilo_tabela = [

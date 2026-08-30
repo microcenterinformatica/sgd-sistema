@@ -33,8 +33,8 @@ def montar_mensagem_infracao(
     return (
         f"🚨 *ALERTA DE INDISCIPLINA ESCOLAR* 🚨\n\n"
         f"Prezado(a) responsável por *{aluno_nome}*,\n\n"
-        f"Informamos que o(a) aluno(a) registrou uma infração disciplinar em *{data_hora_str}*.\n\n"
-        f"• *Infração:* {descricao_infracao}\n"
+        f"Informamos que o(a) aluno(a) registrou uma conduta indisciplinar em *{data_hora_str}*.\n\n"
+        f"• *Conduta Indisciplinar:* {descricao_infracao}\n"
         f"• *Pontuação:* {peso} pontos\n"
         f"• *Professor(a):* {professor_nome}\n"
         f"• *Obs:* {observacao}\n\n"
