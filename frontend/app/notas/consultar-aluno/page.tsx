@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-import { Award, BookOpen, CalendarCheck, ClipboardList, Download, FileText, ListChecks, Scale } from "lucide-react";
+import { Award, BookOpen, CalendarCheck, ClipboardList, Download, FileText, ListChecks } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError, baixarArquivo } from "@/lib/api";
 import { calcularStatus } from "@/lib/conduta";
@@ -50,19 +50,18 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-type Aba = "periodo" | "anual" | "frequencia" | "atividades" | "disciplina" | "historico_disciplinar" | "conteudo";
+type Aba = "periodo" | "anual" | "frequencia" | "atividades" | "historico_disciplinar" | "conteudo";
 
 const ABAS: { value: Aba; label: string; icon: typeof FileText; descricao: string }[] = [
   { value: "conteudo", label: "Conteúdo", icon: BookOpen, descricao: "O que foi lecionado em cada aula da disciplina." },
   { value: "anual", label: "Boletim anual", icon: Award, descricao: "Boletim completo do ano de um aluno, com exportação em PDF." },
   { value: "frequencia", label: "Frequência", icon: CalendarCheck, descricao: "Faltas registradas no período, por aluno ou pela turma toda." },
   { value: "atividades", label: "Atividades", icon: ListChecks, descricao: "O que foi lançado e entregue, por aluno, ou o % de conclusão da turma." },
-  { value: "disciplina", label: "Disciplina", icon: Scale, descricao: "Infrações e méritos registrados, por aluno ou pela turma toda." },
   {
     value: "historico_disciplinar",
     label: "Histórico Disciplinar",
     icon: ClipboardList,
-    descricao: "Baixe o relatório em PDF do histórico disciplinar do aluno, pronto pra enviar ao responsável.",
+    descricao: "Veja na tela a indisciplina e o mérito do aluno (ou da turma toda) e, se quiser, baixe o relatório em PDF pra enviar ao responsável.",
   },
   { value: "periodo", label: "Boletim do período", icon: FileText, descricao: "Nota final calculada num intervalo de datas, por aluno ou pela turma toda." },
 ];
@@ -269,7 +268,7 @@ function DisciplinaTurmaCard({ alunos, punicoes }: { alunos: Aluno[]; punicoes: 
   return (
     <Card>
       <CardHeader className="border-b pb-3">
-        <CardTitle>Disciplina da turma</CardTitle>
+        <CardTitle>Histórico disciplinar da turma</CardTitle>
       </CardHeader>
       <CardContent className="divide-y">
         {ordenado.length === 0 ? (
@@ -646,23 +645,15 @@ function ConsultarAlunoContent() {
     if (aba === "periodo") return consultarPeriodo();
     if (aba === "frequencia") return consultarFrequencia();
     if (aba === "atividades") return consultarAtividades();
-    if (aba === "disciplina") return consultarDisciplina();
     if (aba === "conteudo") return consultarConteudo();
   }
 
   const modoTodasDisciplinas = aba === "conteudo" && todasDisciplinas;
   const mostrarTurma = !modoTodasDisciplinas;
-  const mostrarDisciplina = aba !== "anual" && aba !== "disciplina" && aba !== "historico_disciplinar";
+  const mostrarDisciplina = aba !== "anual" && aba !== "historico_disciplinar";
   const mostrarAluno = aba !== "conteudo";
   const mostrarPeriodo = aba === "periodo" || aba === "frequencia" || aba === "atividades" || aba === "conteudo";
-  const consultarDesabilitado =
-    aba === "conteudo"
-      ? todasDisciplinas
-        ? false
-        : !disciplinaId
-      : aba === "disciplina"
-        ? !alunoId
-        : !alunoId || !disciplinaId;
+  const consultarDesabilitado = aba === "conteudo" ? (todasDisciplinas ? false : !disciplinaId) : !alunoId || !disciplinaId;
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-4">
@@ -794,28 +785,37 @@ function ConsultarAlunoContent() {
               )}
             </div>
           ) : aba === "historico_disciplinar" ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <Select value={diasRelatorio} onValueChange={(v) => setDiasRelatorio(v ?? "7")}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">Últimos 7 dias</SelectItem>
-                  <SelectItem value="15">Últimos 15 dias</SelectItem>
-                  <SelectItem value="30">Últimos 30 dias</SelectItem>
-                  <SelectItem value="3650">Histórico completo</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                onClick={baixarRelatorioDisciplinar}
-                disabled={typeof alunoId !== "number" || gerandoRelatorioPdf}
-              >
-                {gerandoRelatorioPdf ? "Gerando..." : "Baixar relatório (PDF)"}
+            <div className="space-y-3">
+              <Button onClick={consultarDisciplina} disabled={!alunoId}>
+                Consultar
               </Button>
+              <div className="flex flex-wrap items-center gap-3 pt-3 border-t">
+                <span className="text-sm text-muted-foreground mr-auto">
+                  Relatório em PDF pra enviar ao responsável:
+                </span>
+                <Select value={diasRelatorio} onValueChange={(v) => setDiasRelatorio(v ?? "7")}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">Últimos 7 dias</SelectItem>
+                    <SelectItem value="15">Últimos 15 dias</SelectItem>
+                    <SelectItem value="30">Últimos 30 dias</SelectItem>
+                    <SelectItem value="3650">Histórico completo</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  onClick={baixarRelatorioDisciplinar}
+                  disabled={typeof alunoId !== "number" || gerandoRelatorioPdf}
+                >
+                  {gerandoRelatorioPdf ? "Gerando..." : "Baixar relatório (PDF)"}
+                </Button>
+              </div>
               {alunoId === "todos" && (
-                <p className="text-xs text-muted-foreground w-full">
-                  Selecione um aluno específico (não &quot;todos&quot;) para baixar o relatório.
+                <p className="text-xs text-muted-foreground">
+                  O relatório em PDF é individual — selecione um aluno específico (não &quot;todos&quot;) pra
+                  baixar. A consulta na tela funciona pra turma toda.
                 </p>
               )}
             </div>
@@ -1013,14 +1013,14 @@ function ConsultarAlunoContent() {
         </Card>
       )}
 
-      {aba === "disciplina" && alunoId === "todos" && alunosTurmaCompletos.length > 0 && (
+      {aba === "historico_disciplinar" && alunoId === "todos" && alunosTurmaCompletos.length > 0 && (
         <DisciplinaTurmaCard alunos={alunosTurmaCompletos} punicoes={punicoes} />
       )}
 
-      {aba === "disciplina" && alunoDetalhe && (
+      {aba === "historico_disciplinar" && alunoDetalhe && (
         <Card>
           <CardHeader className="flex-row items-center justify-between border-b pb-3">
-            <CardTitle>Disciplina</CardTitle>
+            <CardTitle>Histórico Disciplinar</CardTitle>
             <div className="flex items-center gap-3">
               <Badge variant="secondary">{calcularStatus(alunoDetalhe.pontos_atuais, punicoes)}</Badge>
               <span className="text-sm font-bold text-foreground">{alunoDetalhe.pontos_atuais} pontos</span>
