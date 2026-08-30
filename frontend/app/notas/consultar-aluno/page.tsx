@@ -927,14 +927,14 @@ function ConsultarAlunoContent() {
             {registrosDisciplinares === null ? (
               <p className="text-sm text-muted-foreground">Carregando...</p>
             ) : registrosDisciplinares.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma infração ou mérito registrado.</p>
+              <p className="text-sm text-muted-foreground">Nenhuma indisciplina ou mérito registrado.</p>
             ) : (
               registrosDisciplinares.map((r) => (
                 <div key={r.id} className="py-2 flex items-center justify-between gap-3 text-sm first:pt-0">
                   <div>
                     <div className="flex items-center gap-2">
                       <Badge variant={r.tipo === "infracao" ? "destructive" : "secondary"}>
-                        {r.tipo === "infracao" ? "Infração" : "Mérito"}
+                        {r.tipo === "infracao" ? "Indisciplina" : "Mérito"}
                       </Badge>
                       <span className="font-medium text-foreground">{r.descricao}</span>
                     </div>

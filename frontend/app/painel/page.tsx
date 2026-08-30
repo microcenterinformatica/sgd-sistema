@@ -191,7 +191,7 @@ function DashboardContent() {
                   </p>
                 </div>
                 <Badge variant={r.tipo === "infracao" ? "destructive" : "secondary"}>
-                  {r.tipo === "infracao" ? "Infração" : "Mérito"}
+                  {r.tipo === "infracao" ? "Indisciplina" : "Mérito"}
                 </Badge>
               </li>
             ))}

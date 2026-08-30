@@ -42,7 +42,7 @@ interface EventoHistorico {
 }
 
 const ROTULO_TIPO_EVENTO: Record<TipoEvento, { label: string; className: string }> = {
-  infracao: { label: "Infração", className: "" },
+  infracao: { label: "Indisciplina", className: "" },
   merito: { label: "Mérito", className: "" },
   falta: { label: "Falta", className: "bg-amber-100 text-amber-700" },
   nao_entrega: { label: "Não entregue", className: "bg-orange-100 text-orange-700" },
