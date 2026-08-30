@@ -92,16 +92,16 @@ function RegistrarInfracao({
       });
       reset();
       onRegistrado(resp);
-      toast.success("Infração registrada com sucesso");
+      toast.success("Indisciplina registrada com sucesso");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erro ao registrar infração");
+      toast.error(err instanceof ApiError ? err.message : "Erro ao registrar indisciplina");
     }
   }
 
   return (
     <Card className="border-t-4 border-t-destructive">
       <CardHeader>
-        <CardTitle className="text-xl">Registrar infração</CardTitle>
+        <CardTitle className="text-xl">Registrar indisciplina</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -136,7 +136,7 @@ function RegistrarInfracao({
           <Textarea placeholder="Observação" rows={3} className="text-base" {...register("observacao")} />
 
           <Button type="submit" variant="destructive" disabled={isSubmitting} className="w-full h-12 text-base">
-            {isSubmitting ? "Registrando..." : "Registrar infração"}
+            {isSubmitting ? "Registrando..." : "Registrar indisciplina"}
           </Button>
         </form>
       </CardContent>
@@ -244,7 +244,7 @@ function Historico({ registros }: { registros: RegistroDisciplinar[] }) {
                     variant={r.tipo === "infracao" ? "destructive" : "secondary"}
                     className={r.tipo === "merito" ? "bg-amber-100 text-amber-700" : ""}
                   >
-                    {r.tipo === "infracao" ? "Infração" : "Mérito"}
+                    {r.tipo === "infracao" ? "Indisciplina" : "Mérito"}
                   </Badge>
                   <p className="text-sm font-medium text-foreground">{r.descricao}</p>
                 </div>
