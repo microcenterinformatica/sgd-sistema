@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-import { Award, BookOpen, CalendarCheck, ClipboardList, Download, FileText, ListChecks } from "lucide-react";
+import { BookOpen, CalendarCheck, ClipboardList, Download, FileText, ListChecks } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError, baixarArquivo } from "@/lib/api";
 import { calcularStatus } from "@/lib/conduta";
@@ -50,11 +50,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-type Aba = "periodo" | "anual" | "frequencia" | "atividades" | "historico_disciplinar" | "conteudo";
+type Aba = "periodo" | "frequencia" | "atividades" | "historico_disciplinar" | "conteudo";
 
 const ABAS: { value: Aba; label: string; icon: typeof FileText; descricao: string }[] = [
   { value: "conteudo", label: "Conteúdo", icon: BookOpen, descricao: "O que foi lecionado em cada aula da disciplina." },
-  { value: "anual", label: "Boletim anual", icon: Award, descricao: "Boletim completo do ano de um aluno, com exportação em PDF." },
   { value: "frequencia", label: "Frequência", icon: CalendarCheck, descricao: "Faltas registradas no período, por aluno ou pela turma toda." },
   { value: "atividades", label: "Atividades", icon: ListChecks, descricao: "O que foi lançado e entregue, por aluno, ou o % de conclusão da turma." },
   {
@@ -63,7 +62,12 @@ const ABAS: { value: Aba; label: string; icon: typeof FileText; descricao: strin
     icon: ClipboardList,
     descricao: "Veja na tela a indisciplina e o mérito do aluno (ou da turma toda) e, se quiser, baixe o relatório em PDF pra enviar ao responsável.",
   },
-  { value: "periodo", label: "Boletim do período", icon: FileText, descricao: "Nota final calculada num intervalo de datas, por aluno ou pela turma toda." },
+  {
+    value: "periodo",
+    label: "Boletim",
+    icon: FileText,
+    descricao: "Nota final num intervalo de datas (aluno ou turma toda), ou o boletim anual completo com exportação em PDF.",
+  },
 ];
 
 const ROTULOS_TIPO: Record<TipoAtividade, string> = {
@@ -441,6 +445,8 @@ function ConsultarAlunoContent() {
     if (!alunoId || alunoId === "todos") return;
     setCarregandoBoletimAnual(true);
     setBoletimAnual(null);
+    setBoletim(null);
+    setBoletimTurma(null);
     try {
       const resultado = await api.get<BoletimAnualAluno>(
         `/boletim-anual?turma=${encodeURIComponent(turma)}&aluno_id=${alunoId}`
@@ -457,6 +463,7 @@ function ConsultarAlunoContent() {
     if (!alunoId || !disciplinaId) return;
     setBoletim(null);
     setBoletimTurma(null);
+    setBoletimAnual(null);
     try {
       const boletimParams = new URLSearchParams({ turma, disciplina_id: String(disciplinaId) });
       if (dataInicio) boletimParams.set("data_inicio", dataInicio);
@@ -650,7 +657,7 @@ function ConsultarAlunoContent() {
 
   const modoTodasDisciplinas = aba === "conteudo" && todasDisciplinas;
   const mostrarTurma = !modoTodasDisciplinas;
-  const mostrarDisciplina = aba !== "anual" && aba !== "historico_disciplinar";
+  const mostrarDisciplina = aba !== "historico_disciplinar";
   const mostrarAluno = aba !== "conteudo";
   const mostrarPeriodo = aba === "periodo" || aba === "frequencia" || aba === "atividades" || aba === "conteudo";
   const consultarDesabilitado = aba === "conteudo" ? (todasDisciplinas ? false : !disciplinaId) : !alunoId || !disciplinaId;
@@ -769,18 +776,27 @@ function ConsultarAlunoContent() {
             )}
           </div>
 
-          {aba === "anual" ? (
-            <div>
-              <Button
-                variant="outline"
-                onClick={verBoletimAnual}
-                disabled={!alunoId || alunoId === "todos" || carregandoBoletimAnual}
-              >
-                {carregandoBoletimAnual ? "Gerando..." : "Ver boletim anual"}
+          {aba === "periodo" ? (
+            <div className="space-y-3">
+              <Button onClick={consultarPeriodo} disabled={!alunoId || !disciplinaId}>
+                Consultar
               </Button>
+              <div className="flex flex-wrap items-center gap-3 pt-3 border-t">
+                <span className="text-sm text-muted-foreground mr-auto">
+                  Boletim anual completo, com exportação em PDF:
+                </span>
+                <Button
+                  variant="outline"
+                  onClick={verBoletimAnual}
+                  disabled={!alunoId || alunoId === "todos" || carregandoBoletimAnual}
+                >
+                  {carregandoBoletimAnual ? "Gerando..." : "Ver boletim anual"}
+                </Button>
+              </div>
               {alunoId === "todos" && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Selecione um aluno específico (não &quot;todos&quot;) para ver o boletim anual.
+                <p className="text-xs text-muted-foreground">
+                  O boletim anual é individual — selecione um aluno específico (não &quot;todos&quot;) pra
+                  vê-lo. A consulta por período funciona pra turma toda.
                 </p>
               )}
             </div>
@@ -850,7 +866,7 @@ function ConsultarAlunoContent() {
         </DialogContent>
       </Dialog>
 
-      {aba === "anual" && boletimAnual && (
+      {aba === "periodo" && boletimAnual && (
         <Card>
           <CardHeader className="flex-row items-center justify-between border-b pb-3">
             <CardTitle>Boletim anual — {boletimAnual.aluno_nome}</CardTitle>
