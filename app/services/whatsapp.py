@@ -62,6 +62,23 @@ def montar_mensagem_falta(
     )
 
 
+def montar_mensagem_relatorio(
+    escola_nome: str,
+    aluno_nome: str,
+    periodo_inicio_str: str,
+    periodo_fim_str: str,
+) -> str:
+    return (
+        f"📋 *RELATÓRIO DISCIPLINAR* 📋\n\n"
+        f"Prezado(a) responsável por *{aluno_nome}*,\n\n"
+        f"Segue o relatório disciplinar referente ao período de *{periodo_inicio_str}* a "
+        f"*{periodo_fim_str}*.\n\n"
+        f"Por favor, anexe nesta conversa o arquivo PDF que acabou de ser baixado.\n\n"
+        f"Atenciosamente,\n"
+        f"{escola_nome}."
+    )
+
+
 def montar_mensagem_merito(
     escola_nome: str,
     aluno_nome: str,

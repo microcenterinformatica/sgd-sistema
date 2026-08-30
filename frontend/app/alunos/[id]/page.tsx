@@ -279,6 +279,7 @@ function AlunoDetailContent() {
   const [erro, setErro] = useState<string | null>(null);
   const [diasRelatorio, setDiasRelatorio] = useState("7");
   const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [linkWhatsappRelatorio, setLinkWhatsappRelatorio] = useState<string | null>(null);
 
   const carregarRegistros = useCallback(async () => {
     const dados = await api.get<RegistroDisciplinar[]>(`/registros?aluno_id=${alunoId}`);
@@ -310,9 +311,8 @@ function AlunoDetailContent() {
     carregarRegistros();
   }
 
-  async function baixarRelatorioPdf() {
+  async function executarDownloadRelatorio() {
     if (!aluno) return;
-    setGerandoPdf(true);
     try {
       await baixarArquivo(
         `/alunos/${aluno.id}/relatorio-disciplinar?dias=${diasRelatorio}`,
@@ -322,6 +322,35 @@ function AlunoDetailContent() {
       toast.error(err instanceof ApiError ? err.message : "Erro ao gerar relatório");
     } finally {
       setGerandoPdf(false);
+    }
+  }
+
+  async function baixarRelatorioPdf() {
+    if (!aluno) return;
+    setGerandoPdf(true);
+    try {
+      const resp = await api.get<{ whatsapp_link: string | null }>(
+        `/alunos/${aluno.id}/relatorio-disciplinar-whatsapp?dias=${diasRelatorio}`
+      );
+      if (resp.whatsapp_link) {
+        setLinkWhatsappRelatorio(resp.whatsapp_link);
+        setGerandoPdf(false);
+        return;
+      }
+      await executarDownloadRelatorio();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao gerar relatório");
+      setGerandoPdf(false);
+    }
+  }
+
+  async function confirmarEnvioWhatsappRelatorio(enviar: boolean) {
+    const link = linkWhatsappRelatorio;
+    setLinkWhatsappRelatorio(null);
+    setGerandoPdf(true);
+    await executarDownloadRelatorio();
+    if (enviar && link) {
+      window.open(link, "_blank", "noopener,noreferrer");
     }
   }
 
@@ -370,6 +399,29 @@ function AlunoDetailContent() {
           </Button>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={!!linkWhatsappRelatorio}
+        onOpenChange={(open) => !open && confirmarEnvioWhatsappRelatorio(false)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enviar relatório ao responsável?</DialogTitle>
+            <DialogDescription>
+              O PDF será baixado agora. Deseja também abrir o WhatsApp do responsável com uma
+              mensagem pronta, pra você só anexar o arquivo baixado na conversa?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => confirmarEnvioWhatsappRelatorio(false)}>
+              Não, só baixar
+            </Button>
+            <Button variant="success" onClick={() => confirmarEnvioWhatsappRelatorio(true)}>
+              Sim, enviar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!ultimoWhatsapp} onOpenChange={(open) => !open && setUltimoWhatsapp(null)}>
         <DialogContent>

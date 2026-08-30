@@ -24,6 +24,7 @@ from app.models.usuario import PapelUsuario, Usuario
 from app.schemas.aluno import AlunoCreate, AlunoRead, AlunoUpdate
 from app.services.pontuacao import aplicar_recuperacoes_pendentes
 from app.services.relatorio_pdf import EventoRelatorio, gerar_pdf_historico_aluno
+from app.services.whatsapp import gerar_link_whatsapp, montar_mensagem_relatorio
 
 router = APIRouter(prefix="/alunos", tags=["alunos"])
 
@@ -123,6 +124,28 @@ def _situacao_aluno(session: SessionDep, escola_id: int, pontos: int) -> str:
         .order_by(Punicao.pontuacao_minima.desc())
     ).first()
     return punicao.descricao if punicao else "Sem conduta"
+
+
+@router.get("/{aluno_id}/relatorio-disciplinar-whatsapp")
+def link_whatsapp_relatorio_disciplinar(
+    aluno_id: int, session: SessionDep, usuario_atual: CurrentUserDep, dias: int = 7
+):
+    """Link wa.me (texto apenas, sem anexo) pra acompanhar o PDF baixado via
+    /relatorio-disciplinar — o wa.me não anexa arquivo automaticamente, quem envia
+    ainda precisa arrastar o PDF já baixado pra dentro da conversa."""
+    aluno = _get_aluno_da_escola(session, aluno_id, usuario_atual.escola_id)
+    escola = session.get(Escola, usuario_atual.escola_id)
+
+    hoje = date.today()
+    periodo_inicio = hoje - timedelta(days=max(dias, 1) - 1)
+
+    mensagem = montar_mensagem_relatorio(
+        escola_nome=escola.nome,
+        aluno_nome=aluno.nome,
+        periodo_inicio_str=periodo_inicio.strftime("%d/%m/%Y"),
+        periodo_fim_str=hoje.strftime("%d/%m/%Y"),
+    )
+    return {"whatsapp_link": gerar_link_whatsapp(aluno.whatsapp_responsavel, mensagem)}
 
 
 @router.get("/{aluno_id}/relatorio-disciplinar")
