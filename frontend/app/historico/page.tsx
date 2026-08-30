@@ -179,7 +179,7 @@ function HistoricoContent() {
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-4">
       <PageHeader
-        title="Histórico de Infrações e Méritos"
+        title="Histórico de Ocorrências Disciplinares"
         action={
           <div className="flex items-center gap-3 flex-wrap">
             <Input

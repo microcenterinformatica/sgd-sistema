@@ -13,7 +13,7 @@ from app.models.aluno import Aluno
 from app.models.escola import Escola
 
 ROTULO_TIPO_EVENTO = {
-    "infracao": "Infração",
+    "infracao": "Conduta",
     "merito": "Mérito",
     "falta": "Falta",
     "nao_entrega": "Não entregue",
