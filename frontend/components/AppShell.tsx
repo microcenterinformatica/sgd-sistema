@@ -46,7 +46,7 @@ const ITENS_PRINCIPAIS = [
   { href: "/painel", label: "Painel", icon: LayoutDashboard },
   { href: "/alunos", label: "Registro de Ocorrências", icon: ClipboardList },
   { href: "/historico", label: "Histórico Disciplinar", icon: BookOpen },
-  { href: "/ranking", label: "Ranking de Mérito", icon: Trophy },
+  { href: "/ranking", label: "Patrimônio Disciplinar", icon: Trophy },
 ];
 
 const ITENS_GESTAO = [
