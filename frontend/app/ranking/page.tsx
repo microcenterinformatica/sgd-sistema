@@ -35,8 +35,8 @@ const SEM_TURMA = "Sem turma";
 
 const meritoTurmaSchema = z.object({
   pontos_bonus: z
-    .number({ message: "Informe os pontos de bônus" })
-    .positive("Informe um valor positivo de pontos"),
+    .number({ message: "Informe a quantidade de Veracom" })
+    .positive("Informe um valor positivo de Veracom"),
   professor_id: z.string().optional(),
   observacao: z.string().optional(),
 });
@@ -63,8 +63,8 @@ const MERITO_TURMA_TEXTOS = {
   dar: {
     endpoint: "/registros/merito-turma",
     titulo: (turma: string) => `Mérito para a turma ${turma}`,
-    descricao: "Os pontos serão lançados individualmente para todos os alunos matriculados nesta turma.",
-    placeholderPontos: "Pontos de bônus",
+    descricao: "Os Veracom serão lançados individualmente para todos os alunos matriculados nesta turma.",
+    placeholderPontos: "Veracom de bônus",
     placeholderMotivo: "Motivo do mérito",
     botao: "Registrar mérito para a turma",
     botaoCarregando: "Registrando...",
@@ -75,8 +75,8 @@ const MERITO_TURMA_TEXTOS = {
   remover: {
     endpoint: "/registros/remover-merito-turma",
     titulo: (turma: string) => `Remover mérito da turma ${turma}`,
-    descricao: "Os pontos serão descontados do mérito de todos os alunos matriculados nesta turma, sem afetar a pontuação disciplinar individual.",
-    placeholderPontos: "Pontos a remover",
+    descricao: "Os Veracom serão descontados do mérito de todos os alunos matriculados nesta turma, sem afetar a pontuação disciplinar individual.",
+    placeholderPontos: "Veracom a remover",
     placeholderMotivo: "Motivo da remoção",
     botao: "Remover mérito da turma",
     botaoCarregando: "Removendo...",
@@ -206,7 +206,7 @@ function LinhaRanking({ item, posicao }: { item: RankingItem; posicao: number })
           <div className="text-xs text-muted-foreground">{detalhe(item)}</div>
         </div>
       </div>
-      <span className="text-amber-600 font-bold">{item.pontuacao} pts</span>
+      <span className="text-amber-600 font-bold">{item.pontuacao} Veracom</span>
     </div>
   );
 }
@@ -273,7 +273,7 @@ function RankingContent() {
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <PageHeader
         title="Ranking de Mérito"
-        subtitle="Pontuação = mérito − ocorrências de indisciplina − (peso × faltas não justificadas) − (peso × atividades não entregues)."
+        subtitle="Veracom = mérito − ocorrências de indisciplina − (peso × faltas não justificadas) − (peso × atividades não entregues)."
         action={
           <div className="flex gap-2">
             <Button
