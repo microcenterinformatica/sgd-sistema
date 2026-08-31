@@ -168,18 +168,39 @@ function MeritoTurmaDialog({
 
 interface GrupoRanking {
   turma: string;
-  itens: RankingItem[];
+  itens: ItemComPosicao[];
 }
 
 function detalhe(item: RankingItem): string {
   return `mérito ${item.total_merito} · ocorrências ${item.total_infracao} · ${item.faltas_nao_justificadas} falta(s) · ${item.atividades_nao_entregues} não entregue(s)`;
 }
 
+interface ItemComPosicao {
+  item: RankingItem;
+  posicao: number;
+}
+
+/** Ranking por posição compartilhada: pontuação igual = mesma posição, próxima pula (1º, 1º, 3º). */
+function ordenarComPosicaoCompartilhada(lista: RankingItem[]): ItemComPosicao[] {
+  const ordenada = [...lista].sort((a, b) => b.pontuacao - a.pontuacao);
+  const resultado: ItemComPosicao[] = [];
+  let posicaoAtual = 0;
+  let pontuacaoAnterior: number | null = null;
+  ordenada.forEach((item, idx) => {
+    if (pontuacaoAnterior === null || item.pontuacao !== pontuacaoAnterior) {
+      posicaoAtual = idx + 1;
+      pontuacaoAnterior = item.pontuacao;
+    }
+    resultado.push({ item, posicao: posicaoAtual });
+  });
+  return resultado;
+}
+
 function LinhaRanking({ item, posicao }: { item: RankingItem; posicao: number }) {
   return (
     <div className="flex items-center justify-between p-4">
       <div className="flex items-center gap-3">
-        <span className="w-8 text-center text-lg">{MEDALHAS[posicao] ?? `${posicao + 1}º`}</span>
+        <span className="w-8 text-center text-lg">{MEDALHAS[posicao - 1] ?? `${posicao}º`}</span>
         <div>
           <div className="font-medium text-foreground">{item.aluno_nome}</div>
           <div className="text-xs text-muted-foreground">{detalhe(item)}</div>
@@ -220,7 +241,7 @@ function RankingContent() {
 
   const geral = useMemo(() => {
     if (!itens) return null;
-    return [...itens].sort((a, b) => b.pontuacao - a.pontuacao);
+    return ordenarComPosicaoCompartilhada(itens);
   }, [itens]);
 
   const grupos = useMemo<GrupoRanking[] | null>(() => {
@@ -233,7 +254,7 @@ function RankingContent() {
       porTurma.set(turma, lista);
     }
     return Array.from(porTurma.entries())
-      .map(([turma, lista]) => ({ turma, itens: lista.sort((a, b) => b.pontuacao - a.pontuacao) }))
+      .map(([turma, lista]) => ({ turma, itens: ordenarComPosicaoCompartilhada(lista) }))
       .sort((a, b) => {
         if (a.turma === SEM_TURMA) return 1;
         if (b.turma === SEM_TURMA) return -1;
@@ -303,8 +324,8 @@ function RankingContent() {
       {visao === "geral" && geral && geral.length > 0 && (
         <Card className="py-0">
           <CardContent className="divide-y px-0">
-            {geral.map((item, idx) => (
-              <LinhaRanking key={item.aluno_id} item={item} posicao={idx} />
+            {geral.map(({ item, posicao }) => (
+              <LinhaRanking key={item.aluno_id} item={item} posicao={posicao} />
             ))}
           </CardContent>
         </Card>
@@ -336,8 +357,8 @@ function RankingContent() {
               </h2>
               <Card className="py-0">
                 <CardContent className="divide-y px-0">
-                  {grupo.itens.map((item, idx) => (
-                    <LinhaRanking key={item.aluno_id} item={item} posicao={idx} />
+                  {grupo.itens.map(({ item, posicao }) => (
+                    <LinhaRanking key={item.aluno_id} item={item} posicao={posicao} />
                   ))}
                 </CardContent>
               </Card>
