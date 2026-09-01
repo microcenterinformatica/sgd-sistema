@@ -169,6 +169,7 @@ function MeritoTurmaDialog({
 interface GrupoRanking {
   turma: string;
   itens: ItemComPosicao[];
+  totalVeracom: number;
 }
 
 function detalhe(item: RankingItem): string {
@@ -259,7 +260,11 @@ function RankingContent() {
       porTurma.set(turma, lista);
     }
     return Array.from(porTurma.entries())
-      .map(([turma, lista]) => ({ turma, itens: ordenarComPosicaoCompartilhada(lista) }))
+      .map(([turma, lista]) => ({
+        turma,
+        itens: ordenarComPosicaoCompartilhada(lista),
+        totalVeracom: lista.reduce((soma, item) => soma + item.pontuacao, 0),
+      }))
       .sort((a, b) => {
         if (a.turma === SEM_TURMA) return 1;
         if (b.turma === SEM_TURMA) return -1;
@@ -365,9 +370,12 @@ function RankingContent() {
 
           {gruposExibidos?.map((grupo) => (
             <div key={grupo.turma} className="space-y-2">
-              <h2 className="font-bold text-foreground">
-                {grupo.turma === SEM_TURMA ? SEM_TURMA : `Turma ${grupo.turma}`}
-              </h2>
+              <div className="flex items-center justify-between px-4">
+                <h2 className="font-bold text-foreground">
+                  {grupo.turma === SEM_TURMA ? SEM_TURMA : `Turma ${grupo.turma}`}
+                </h2>
+                <span className="text-amber-600 font-bold">{grupo.totalVeracom} Veracom</span>
+              </div>
               <Card className="py-0">
                 <CardContent className="divide-y px-0">
                   {grupo.itens.map(({ item, posicao }) => (
