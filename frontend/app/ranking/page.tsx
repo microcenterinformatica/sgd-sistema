@@ -280,13 +280,7 @@ function RankingContent() {
         title="Patrimônio Disciplinar"
         subtitle="Veracom = mérito − ocorrências de indisciplina − (peso × faltas não justificadas) − (peso × atividades não entregues)."
         action={
-          <div className="flex items-center gap-3 flex-wrap">
-            {totalVeracom !== null && (
-              <span className="text-sm font-semibold text-amber-600 whitespace-nowrap">
-                Total: {totalVeracom} Veracom
-              </span>
-            )}
-            <div className="flex gap-2">
+          <div className="flex gap-2">
             <Button
               variant={visao === "turma" ? "default" : "outline"}
               size="sm"
@@ -313,7 +307,6 @@ function RankingContent() {
                 </Button>
               </>
             )}
-            </div>
           </div>
         }
       />
@@ -334,13 +327,21 @@ function RankingContent() {
       {itens?.length === 0 && <p className="text-muted-foreground">Nenhum aluno cadastrado ainda.</p>}
 
       {visao === "geral" && geral && geral.length > 0 && (
-        <Card className="py-0">
-          <CardContent className="divide-y px-0">
-            {geral.map(({ item, posicao }) => (
-              <LinhaRanking key={item.aluno_id} item={item} posicao={posicao} />
-            ))}
-          </CardContent>
-        </Card>
+        <>
+          {totalVeracom !== null && (
+            <div className="flex items-center justify-between px-4">
+              <span className="font-bold text-foreground">Total geral</span>
+              <span className="text-amber-600 font-bold">{totalVeracom} Veracom</span>
+            </div>
+          )}
+          <Card className="py-0">
+            <CardContent className="divide-y px-0">
+              {geral.map(({ item, posicao }) => (
+                <LinhaRanking key={item.aluno_id} item={item} posicao={posicao} />
+              ))}
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {visao === "turma" && (
