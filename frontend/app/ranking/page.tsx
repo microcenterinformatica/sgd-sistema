@@ -244,6 +244,11 @@ function RankingContent() {
     return ordenarComPosicaoCompartilhada(itens);
   }, [itens]);
 
+  const totalVeracom = useMemo(() => {
+    if (!itens) return null;
+    return itens.reduce((soma, item) => soma + item.pontuacao, 0);
+  }, [itens]);
+
   const grupos = useMemo<GrupoRanking[] | null>(() => {
     if (!itens) return null;
     const porTurma = new Map<string, RankingItem[]>();
@@ -275,7 +280,13 @@ function RankingContent() {
         title="Patrimônio Disciplinar"
         subtitle="Veracom = mérito − ocorrências de indisciplina − (peso × faltas não justificadas) − (peso × atividades não entregues)."
         action={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            {totalVeracom !== null && (
+              <span className="text-sm font-semibold text-amber-600 whitespace-nowrap">
+                Total: {totalVeracom} Veracom
+              </span>
+            )}
+            <div className="flex gap-2">
             <Button
               variant={visao === "turma" ? "default" : "outline"}
               size="sm"
@@ -302,6 +313,7 @@ function RankingContent() {
                 </Button>
               </>
             )}
+            </div>
           </div>
         }
       />
