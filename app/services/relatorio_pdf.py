@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from io import BytesIO
 from typing import Optional
 
@@ -9,6 +9,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from app.core.tempo import para_horario_local
 from app.models.aluno import Aluno
 from app.models.escola import Escola
 
@@ -39,7 +40,8 @@ class EventoRelatorio:
 
 def _formatar_data(valor: date | datetime) -> str:
     if isinstance(valor, datetime):
-        return valor.strftime("%d/%m/%Y<br/>%H:%M")
+        # valor vem armazenado em UTC; converte para o horário de Brasília antes de exibir.
+        return para_horario_local(valor).strftime("%d/%m/%Y<br/>%H:%M")
     return valor.strftime("%d/%m/%Y")
 
 
@@ -126,7 +128,7 @@ def gerar_pdf_historico_aluno(
         elementos.append(tabela)
 
     elementos.append(Spacer(1, 0.8 * cm))
-    rodape = f"Relatório gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}."
+    rodape = f"Relatório gerado em {para_horario_local(datetime.now(timezone.utc)).strftime('%d/%m/%Y %H:%M')}."
     elementos.append(
         Paragraph(
             rodape,

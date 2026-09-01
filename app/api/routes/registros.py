@@ -6,6 +6,7 @@ from sqlmodel import select
 
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
 from app.core.permissoes import verificar_permissao_turma
+from app.core.tempo import para_horario_local
 from app.models.aluno import Aluno
 from app.models.escola import Escola
 from app.models.professor import Professor
@@ -103,7 +104,7 @@ def registrar_infracao(dados: RegistroInfracaoCreate, session: SessionDep, usuar
         peso=regra.peso,
         professor_nome=professor_nome,
         observacao=dados.observacao or "",
-        data_hora_str=agora.strftime("%d/%m/%Y %H:%M"),
+        data_hora_str=para_horario_local(agora).strftime("%d/%m/%Y %H:%M"),
         pontos_atuais=aluno.pontos_atuais,
     )
 
@@ -150,7 +151,7 @@ def registrar_merito(dados: RegistroMeritoCreate, session: SessionDep, usuario_a
         pontos_bonus=dados.pontos_bonus,
         professor_nome=professor_nome,
         observacao=dados.observacao or "",
-        data_hora_str=agora.strftime("%d/%m/%Y %H:%M"),
+        data_hora_str=para_horario_local(agora).strftime("%d/%m/%Y %H:%M"),
         pontos_atuais=aluno.pontos_atuais,
     )
 

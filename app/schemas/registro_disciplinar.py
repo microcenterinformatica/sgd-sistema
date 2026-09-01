@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
+from pydantic import field_serializer
 from sqlmodel import SQLModel
 
 from app.models.registro_disciplinar import TipoRegistro
@@ -50,6 +51,15 @@ class RegistroDisciplinarRead(SQLModel):
     professor_id: Optional[int]
     registrado_por_usuario_id: int
     professor_nome: Optional[str] = None
+
+    @field_serializer("data_hora")
+    def _serializar_data_hora(self, valor: datetime) -> str:
+        # data_hora é armazenado em UTC sem tzinfo; marcamos o offset explicitamente
+        # na resposta para que o navegador converta corretamente para o horário local
+        # (sem isso, o front-end interpreta a string como se já fosse hora local).
+        if valor.tzinfo is None:
+            valor = valor.replace(tzinfo=timezone.utc)
+        return valor.isoformat()
 
 
 class RegistroDisciplinarResponse(SQLModel):
