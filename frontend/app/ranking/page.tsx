@@ -170,6 +170,36 @@ interface GrupoRanking {
   turma: string;
   itens: ItemComPosicao[];
   totalVeracom: number;
+  numAlunos: number;
+}
+
+/**
+ * Cotacao do Veracom, no estilo dolar/real: cada aluno "emite" 100 Veracom na
+ * base (numAlunos x 100). Se o total atual bater exatamente na base, 1
+ * Veracom = R$ 1. Total abaixo da base desvaloriza a cotacao; acima, valoriza.
+ * Piso em zero pra nao mostrar cotacao negativa quando o total fica bem abaixo da base.
+ */
+function calcularCotacao(totalVeracom: number, numAlunos: number): number | null {
+  if (numAlunos <= 0) return null;
+  const base = numAlunos * 100;
+  return Math.max(totalVeracom / base, 0);
+}
+
+function formatarCotacao(cotacao: number): string {
+  return cotacao.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function TotalVeracom({ totalVeracom, numAlunos }: { totalVeracom: number; numAlunos: number }) {
+  const cotacao = calcularCotacao(totalVeracom, numAlunos);
+  return (
+    <div className="flex flex-col items-end">
+      <span className="text-xs text-muted-foreground">Total</span>
+      <span className="text-amber-600 font-bold">{totalVeracom} Veracom</span>
+      {cotacao !== null && (
+        <span className="text-xs text-muted-foreground">1 Veracom = {formatarCotacao(cotacao)}</span>
+      )}
+    </div>
+  );
 }
 
 function detalhe(item: RankingItem): string {
@@ -264,6 +294,7 @@ function RankingContent() {
         turma,
         itens: ordenarComPosicaoCompartilhada(lista),
         totalVeracom: lista.reduce((soma, item) => soma + item.pontuacao, 0),
+        numAlunos: lista.length,
       }))
       .sort((a, b) => {
         if (a.turma === SEM_TURMA) return 1;
@@ -335,8 +366,8 @@ function RankingContent() {
         <>
           {totalVeracom !== null && (
             <div className="flex items-center justify-between px-4">
-              <span className="font-bold text-foreground">Total geral</span>
-              <span className="text-amber-600 font-bold">{totalVeracom} Veracom</span>
+              <span className="font-bold text-foreground">Geral</span>
+              <TotalVeracom totalVeracom={totalVeracom} numAlunos={geral.length} />
             </div>
           )}
           <Card className="py-0">
@@ -374,7 +405,7 @@ function RankingContent() {
                 <h2 className="font-bold text-foreground">
                   {grupo.turma === SEM_TURMA ? SEM_TURMA : `Turma ${grupo.turma}`}
                 </h2>
-                <span className="text-amber-600 font-bold">{grupo.totalVeracom} Veracom</span>
+                <TotalVeracom totalVeracom={grupo.totalVeracom} numAlunos={grupo.numAlunos} />
               </div>
               <Card className="py-0">
                 <CardContent className="divide-y px-0">
