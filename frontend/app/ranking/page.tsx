@@ -173,16 +173,19 @@ interface GrupoRanking {
   numAlunos: number;
 }
 
+/** Valor de 1 Veracom quando o total bate exatamente na base (numAlunos x 100). */
+const VALOR_BASE_VERACOM = 0.2;
+
 /**
  * Cotacao do Veracom, no estilo dolar/real: cada aluno "emite" 100 Veracom na
  * base (numAlunos x 100). Se o total atual bater exatamente na base, 1
- * Veracom = R$ 1. Total abaixo da base desvaloriza a cotacao; acima, valoriza.
+ * Veracom = R$ 0,20. Total abaixo da base desvaloriza a cotacao; acima, valoriza.
  * Piso em zero pra nao mostrar cotacao negativa quando o total fica bem abaixo da base.
  */
 function calcularCotacao(totalVeracom: number, numAlunos: number): number | null {
   if (numAlunos <= 0) return null;
   const base = numAlunos * 100;
-  return Math.max(totalVeracom / base, 0);
+  return Math.max((totalVeracom / base) * VALOR_BASE_VERACOM, 0);
 }
 
 function formatarCotacao(cotacao: number): string {
