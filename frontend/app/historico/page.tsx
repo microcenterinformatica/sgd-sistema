@@ -120,16 +120,6 @@ function HistoricoContent() {
     return Array.from(unicas).sort();
   }, [alunos]);
 
-  const alunosExibidos = useMemo(() => {
-    return alunos
-      .filter((a) => {
-        if (turmaFiltro === "todas") return true;
-        if (turmaFiltro === "sem-turma") return !a.turma;
-        return a.turma === turmaFiltro;
-      })
-      .filter((a) => a.nome.toLowerCase().includes(buscaNome.trim().toLowerCase()));
-  }, [alunos, turmaFiltro, buscaNome]);
-
   const eventosPorAluno = useMemo(() => {
     const mapa = new Map<number, EventoHistorico[]>();
     function adicionar(alunoId: number, evento: EventoHistorico) {
@@ -175,6 +165,20 @@ function HistoricoContent() {
     }
     return mapa;
   }, [registros, faltas, naoEntregues, configRanking]);
+
+  const alunosExibidos = useMemo(() => {
+    return alunos
+      .filter((a) => {
+        if (turmaFiltro === "todas") return true;
+        if (turmaFiltro === "sem-turma") return !a.turma;
+        return a.turma === turmaFiltro;
+      })
+      .filter((a) => a.nome.toLowerCase().includes(buscaNome.trim().toLowerCase()))
+      .sort((x, y) => {
+        const diff = (eventosPorAluno.get(y.id)?.length ?? 0) - (eventosPorAluno.get(x.id)?.length ?? 0);
+        return diff !== 0 ? diff : x.nome.localeCompare(y.nome);
+      });
+  }, [alunos, turmaFiltro, buscaNome, eventosPorAluno]);
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-4">
