@@ -175,10 +175,10 @@ function HistoricoContent() {
       })
       .filter((a) => a.nome.toLowerCase().includes(buscaNome.trim().toLowerCase()))
       .sort((x, y) => {
-        const diff = (eventosPorAluno.get(y.id)?.length ?? 0) - (eventosPorAluno.get(x.id)?.length ?? 0);
+        const diff = y.pontos_atuais - x.pontos_atuais;
         return diff !== 0 ? diff : x.nome.localeCompare(y.nome);
       });
-  }, [alunos, turmaFiltro, buscaNome, eventosPorAluno]);
+  }, [alunos, turmaFiltro, buscaNome]);
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-4">
