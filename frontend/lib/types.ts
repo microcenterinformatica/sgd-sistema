@@ -277,6 +277,7 @@ export interface ConfiguracaoPeriodo {
 export interface ConfiguracaoRanking {
   peso_falta: number;
   peso_nao_entrega: number;
+  valor_veracom_base: number;
 }
 
 export interface ConfiguracaoRecuperacao {

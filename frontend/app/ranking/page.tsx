@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Award, MinusCircle } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
-import { Professor, RankingItem, RegistroMeritoTurmaResponse } from "@/lib/types";
+import { ConfiguracaoRanking, Professor, RankingItem, RegistroMeritoTurmaResponse } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -173,27 +173,33 @@ interface GrupoRanking {
   numAlunos: number;
 }
 
-/** Valor de 1 Veracom quando o total bate exatamente na base (numAlunos x 100). */
-const VALOR_BASE_VERACOM = 0.2;
-
 /**
  * Cotacao do Veracom, no estilo dolar/real: cada aluno "emite" 100 Veracom na
  * base (numAlunos x 100). Se o total atual bater exatamente na base, 1
- * Veracom = R$ 0,20. Total abaixo da base desvaloriza a cotacao; acima, valoriza.
- * Piso em zero pra nao mostrar cotacao negativa quando o total fica bem abaixo da base.
+ * Veracom vale valorBase (definido pelo admin em Configuracoes). Total abaixo
+ * da base desvaloriza a cotacao; acima, valoriza. Piso em zero pra nao
+ * mostrar cotacao negativa quando o total fica bem abaixo da base.
  */
-function calcularCotacao(totalVeracom: number, numAlunos: number): number | null {
+function calcularCotacao(totalVeracom: number, numAlunos: number, valorBase: number): number | null {
   if (numAlunos <= 0) return null;
   const base = numAlunos * 100;
-  return Math.max((totalVeracom / base) * VALOR_BASE_VERACOM, 0);
+  return Math.max((totalVeracom / base) * valorBase, 0);
 }
 
 function formatarCotacao(cotacao: number): string {
   return cotacao.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function TotalVeracom({ totalVeracom, numAlunos }: { totalVeracom: number; numAlunos: number }) {
-  const cotacao = calcularCotacao(totalVeracom, numAlunos);
+function TotalVeracom({
+  totalVeracom,
+  numAlunos,
+  valorBase,
+}: {
+  totalVeracom: number;
+  numAlunos: number;
+  valorBase: number;
+}) {
+  const cotacao = calcularCotacao(totalVeracom, numAlunos, valorBase);
   return (
     <div className="flex flex-col items-end">
       <span className="text-xs text-muted-foreground">Total</span>
@@ -252,6 +258,7 @@ function RankingContent() {
   const [turmaFiltro, setTurmaFiltro] = useState<string>("todas");
   const [professores, setProfessores] = useState<Professor[]>([]);
   const [dialogoMeritoTurma, setDialogoMeritoTurma] = useState<"dar" | "remover" | null>(null);
+  const [valorVeracomBase, setValorVeracomBase] = useState(0.2);
 
   function carregarRanking() {
     api
@@ -263,6 +270,10 @@ function RankingContent() {
   useEffect(() => {
     carregarRanking();
     api.get<Professor[]>("/professores").then(setProfessores).catch(() => {});
+    api
+      .get<ConfiguracaoRanking>("/configuracao-ranking")
+      .then((c) => setValorVeracomBase(c.valor_veracom_base))
+      .catch(() => {});
   }, []);
 
   const turmaSelecionada = visao === "turma" && turmaFiltro !== "todas" && turmaFiltro !== "sem-turma" ? turmaFiltro : null;
@@ -370,7 +381,7 @@ function RankingContent() {
           {totalVeracom !== null && (
             <div className="flex items-center justify-between px-4">
               <span className="font-bold text-foreground">Geral</span>
-              <TotalVeracom totalVeracom={totalVeracom} numAlunos={geral.length} />
+              <TotalVeracom totalVeracom={totalVeracom} numAlunos={geral.length} valorBase={valorVeracomBase} />
             </div>
           )}
           <Card className="py-0">
@@ -408,7 +419,11 @@ function RankingContent() {
                 <h2 className="font-bold text-foreground">
                   {grupo.turma === SEM_TURMA ? SEM_TURMA : `Turma ${grupo.turma}`}
                 </h2>
-                <TotalVeracom totalVeracom={grupo.totalVeracom} numAlunos={grupo.numAlunos} />
+                <TotalVeracom
+                  totalVeracom={grupo.totalVeracom}
+                  numAlunos={grupo.numAlunos}
+                  valorBase={valorVeracomBase}
+                />
               </div>
               <Card className="py-0">
                 <CardContent className="divide-y px-0">

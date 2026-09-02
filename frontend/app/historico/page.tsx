@@ -75,7 +75,7 @@ function HistoricoContent() {
   const [registros, setRegistros] = useState<RegistroDisciplinar[]>([]);
   const [faltas, setFaltas] = useState<FaltaRead[]>([]);
   const [naoEntregues, setNaoEntregues] = useState<AtividadeNaoEntregueRead[]>([]);
-  const [configRanking, setConfigRanking] = useState<ConfiguracaoRanking>({ peso_falta: 1, peso_nao_entrega: 0 });
+  const [configRanking, setConfigRanking] = useState<ConfiguracaoRanking>({ peso_falta: 1, peso_nao_entrega: 0, valor_veracom_base: 0.2 });
   const [turmaFiltro, setTurmaFiltro] = useState<string>("todas");
   const [buscaNome, setBuscaNome] = useState<string>("");
   const [erro, setErro] = useState<string | null>(null);

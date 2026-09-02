@@ -17,8 +17,10 @@ class RankingItem(SQLModel):
 class ConfiguracaoRankingRead(SQLModel):
     peso_falta: float
     peso_nao_entrega: float
+    valor_veracom_base: float
 
 
 class ConfiguracaoRankingUpdate(SQLModel):
     peso_falta: Optional[float] = None
     peso_nao_entrega: Optional[float] = None
+    valor_veracom_base: Optional[float] = None
