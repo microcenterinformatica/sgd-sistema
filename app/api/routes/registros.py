@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import select
+from sqlmodel import func, select
 
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
 from app.core.permissoes import verificar_permissao_turma
@@ -228,7 +228,10 @@ def editar_registro_infracao(
     aluno = session.get(Aluno, registro.aluno_id)
     verificar_permissao_turma(session, usuario_atual, aluno.turma)
     regra = _get_regra_da_escola(session, dados.regra_id, usuario_atual.escola_id)
-    agora = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    data_hora_utc = dados.data_hora
+    if data_hora_utc.tzinfo is not None:
+        data_hora_utc = data_hora_utc.astimezone(timezone.utc).replace(tzinfo=None)
 
     peso_antigo = registro.peso
     recalcular_apos_edicao(aluno, peso_antigo, regra.peso)
@@ -238,12 +241,23 @@ def editar_registro_infracao(
     registro.peso = regra.peso
     registro.observacao = dados.observacao
     registro.professor_id = dados.professor_id
-    registro.data_hora = agora
-    aluno.data_ultima_infracao = agora
+    registro.data_hora = data_hora_utc
+
+    session.add(registro)
+    session.flush()
+
+    # Recalcula a partir do historico real (nao so "agora") pra que o relogio
+    # da recuperacao automatica reflita a data editada, inclusive quando o
+    # registro editado deixa de ser a infracao mais recente do aluno.
+    aluno.data_ultima_infracao = session.exec(
+        select(func.max(RegistroDisciplinar.data_hora)).where(
+            RegistroDisciplinar.aluno_id == aluno.id,
+            RegistroDisciplinar.tipo == TipoRegistro.infracao,
+        )
+    ).one()
 
     professor_nome = _get_professor_nome(session, dados.professor_id, usuario_atual.escola_id, usuario_atual.nome)
 
-    session.add(registro)
     session.add(aluno)
     session.commit()
     session.refresh(registro)

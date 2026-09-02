@@ -37,6 +37,7 @@ class RegistroInfracaoUpdate(SQLModel):
     regra_id: int
     professor_id: Optional[int] = None
     observacao: Optional[str] = None
+    data_hora: datetime
 
 
 class RegistroDisciplinarRead(SQLModel):

@@ -11,14 +11,18 @@ import {
   AtividadeNaoEntregueRead,
   ConfiguracaoRanking,
   FaltaRead,
+  Professor,
   Punicao,
   RegistroDisciplinar,
+  RegraInfracao,
 } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   Select,
@@ -27,6 +31,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type TipoEvento = "infracao" | "merito" | "falta" | "nao_entrega";
 
@@ -39,6 +51,20 @@ interface EventoHistorico {
   professorNome?: string | null;
   observacao?: string | null;
   registroId?: number;
+  regraId?: number | null;
+  professorId?: number | null;
+}
+
+/** "aaaa-mm-ddThh:mm" no fuso local do navegador, pro valor de um <input type="datetime-local">. */
+function paraDatetimeLocal(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Converte o valor de um <input type="datetime-local"> (fuso local) pra ISO UTC. */
+function deDatetimeLocal(value: string): string {
+  return new Date(value).toISOString();
 }
 
 const ROTULO_TIPO_EVENTO: Record<TipoEvento, { label: string; className: string }> = {
@@ -67,6 +93,119 @@ function formatarDataEvento(evento: EventoHistorico): string {
   return `${dia}/${mes}/${ano}`;
 }
 
+function EditarInfracaoDialog({
+  alunoNome,
+  evento,
+  regras,
+  professores,
+  onOpenChange,
+  onEditado,
+}: {
+  alunoNome: string;
+  evento: EventoHistorico;
+  regras: RegraInfracao[];
+  professores: Professor[];
+  onOpenChange: (open: boolean) => void;
+  onEditado: () => void;
+}) {
+  const [regraId, setRegraId] = useState(evento.regraId ? String(evento.regraId) : "");
+  const [professorId, setProfessorId] = useState(evento.professorId ? String(evento.professorId) : "");
+  const [observacao, setObservacao] = useState(evento.observacao ?? "");
+  const [dataHora, setDataHora] = useState(paraDatetimeLocal(evento.data));
+  const [salvando, setSalvando] = useState(false);
+
+  async function salvar() {
+    if (!regraId) {
+      toast.error("Selecione uma regra");
+      return;
+    }
+    setSalvando(true);
+    try {
+      await api.put(`/registros/${evento.registroId}`, {
+        regra_id: Number(regraId),
+        professor_id: professorId ? Number(professorId) : null,
+        observacao: observacao || null,
+        data_hora: deDatetimeLocal(dataHora),
+      });
+      onOpenChange(false);
+      onEditado();
+      toast.success("Ocorrência atualizada");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao editar ocorrência");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar indisciplina — {alunoNome}</DialogTitle>
+          <DialogDescription>
+            Altere a regra, a data/hora, o professor ou a observação deste registro.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label>Regra</Label>
+            <Select value={regraId || undefined} onValueChange={(v) => setRegraId(v ?? "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione a regra...">
+                  {(v: string) => {
+                    const r = regras.find((r) => String(r.id) === v);
+                    return r ? `${r.descricao} (${r.peso} pts)` : "Selecione a regra...";
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {regras.map((r) => (
+                  <SelectItem key={r.id} value={String(r.id)}>
+                    {r.descricao} ({r.peso} pts)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Data e hora</Label>
+            <Input type="datetime-local" value={dataHora} onChange={(e) => setDataHora(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Professor (opcional)</Label>
+            <Select value={professorId || undefined} onValueChange={(v) => setProfessorId(v ?? "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Professor (opcional)">
+                  {(v: string) => professores.find((p) => String(p.id) === v)?.nome ?? "Professor (opcional)"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {professores.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Observação (opcional)</Label>
+            <Textarea rows={3} value={observacao} onChange={(e) => setObservacao(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={salvar} disabled={salvando}>
+            {salvando ? "Salvando..." : "Salvar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function HistoricoContent() {
   const { user } = useAuth();
   const podeExcluir = user?.papel === "admin_escola" || user?.papel === "coordenacao";
@@ -76,19 +215,24 @@ function HistoricoContent() {
   const [faltas, setFaltas] = useState<FaltaRead[]>([]);
   const [naoEntregues, setNaoEntregues] = useState<AtividadeNaoEntregueRead[]>([]);
   const [configRanking, setConfigRanking] = useState<ConfiguracaoRanking>({ peso_falta: 1, peso_nao_entrega: 0, valor_veracom_base: 0.2 });
+  const [regras, setRegras] = useState<RegraInfracao[]>([]);
+  const [professores, setProfessores] = useState<Professor[]>([]);
   const [turmaFiltro, setTurmaFiltro] = useState<string>("todas");
   const [buscaNome, setBuscaNome] = useState<string>("");
   const [erro, setErro] = useState<string | null>(null);
+  const [editando, setEditando] = useState<{ aluno: Aluno; evento: EventoHistorico } | null>(null);
 
   async function carregar() {
     try {
-      const [a, p, r, f, n, cfg] = await Promise.all([
+      const [a, p, r, f, n, cfg, rg, prof] = await Promise.all([
         api.get<Aluno[]>("/alunos"),
         api.get<Punicao[]>("/punicoes"),
         api.get<RegistroDisciplinar[]>("/registros"),
         api.get<FaltaRead[]>("/faltas"),
         api.get<AtividadeNaoEntregueRead[]>("/atividades/nao-entregues"),
         api.get<ConfiguracaoRanking>("/configuracao-ranking"),
+        api.get<RegraInfracao[]>("/regras"),
+        api.get<Professor[]>("/professores"),
       ]);
       setAlunos(a.sort((x, y) => x.nome.localeCompare(y.nome)));
       setPunicoes(p);
@@ -96,6 +240,8 @@ function HistoricoContent() {
       setFaltas(f);
       setNaoEntregues(n);
       setConfigRanking(cfg);
+      setRegras(rg);
+      setProfessores(prof);
     } catch (err) {
       setErro(err instanceof ApiError ? err.message : "Erro ao carregar histórico");
     }
@@ -138,6 +284,8 @@ function HistoricoContent() {
         professorNome: r.professor_nome,
         observacao: r.observacao,
         registroId: r.id,
+        regraId: r.regra_id,
+        professorId: r.professor_id,
       });
     }
     for (const f of faltas) {
@@ -257,6 +405,11 @@ function HistoricoContent() {
                           <span className={`text-sm font-semibold ${evento.peso >= 0 ? "text-destructive" : "text-emerald-600"}`}>
                             {evento.peso >= 0 ? `+${evento.peso}` : evento.peso}
                           </span>
+                          {evento.tipo === "infracao" && evento.registroId !== undefined && (
+                            <Button variant="ghost" size="sm" onClick={() => setEditando({ aluno, evento })}>
+                              Editar
+                            </Button>
+                          )}
                           {podeExcluir && evento.registroId !== undefined && (
                             <ConfirmDialog
                               trigger={
@@ -280,6 +433,17 @@ function HistoricoContent() {
           );
         })}
       </div>
+
+      {editando && (
+        <EditarInfracaoDialog
+          alunoNome={editando.aluno.nome}
+          evento={editando.evento}
+          regras={regras}
+          professores={professores}
+          onOpenChange={(open) => !open && setEditando(null)}
+          onEditado={carregar}
+        />
+      )}
     </div>
   );
 }
