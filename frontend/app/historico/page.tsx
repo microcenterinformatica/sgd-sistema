@@ -175,10 +175,12 @@ function HistoricoContent() {
       })
       .filter((a) => a.nome.toLowerCase().includes(buscaNome.trim().toLowerCase()))
       .sort((x, y) => {
-        const diff = y.pontos_atuais - x.pontos_atuais;
-        return diff !== 0 ? diff : x.nome.localeCompare(y.nome);
+        const diffPontos = y.pontos_atuais - x.pontos_atuais;
+        if (diffPontos !== 0) return diffPontos;
+        const diffEventos = (eventosPorAluno.get(y.id)?.length ?? 0) - (eventosPorAluno.get(x.id)?.length ?? 0);
+        return diffEventos !== 0 ? diffEventos : x.nome.localeCompare(y.nome);
       });
-  }, [alunos, turmaFiltro, buscaNome]);
+  }, [alunos, turmaFiltro, buscaNome, eventosPorAluno]);
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-4">
