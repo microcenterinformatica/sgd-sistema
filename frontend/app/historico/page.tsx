@@ -407,14 +407,14 @@ function HistoricoContent() {
                           </span>
                           <div className="flex flex-col items-stretch">
                             {evento.tipo === "infracao" && evento.registroId !== undefined && (
-                              <Button variant="ghost" size="sm" onClick={() => setEditando({ aluno, evento })}>
+                              <Button variant="ghost" size="sm" className="w-full justify-center" onClick={() => setEditando({ aluno, evento })}>
                                 Editar
                               </Button>
                             )}
                             {podeExcluir && evento.registroId !== undefined && (
                               <ConfirmDialog
                                 trigger={
-                                  <Button variant="ghost" size="sm" className="text-destructive">
+                                  <Button variant="ghost" size="sm" className="w-full justify-center text-destructive">
                                     Excluir
                                   </Button>
                                 }
