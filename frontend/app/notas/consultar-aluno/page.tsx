@@ -11,6 +11,7 @@ import { calcularStatus } from "@/lib/conduta";
 import {
   Aluno,
   AlunoResumo,
+  AtividadePendenciaRead,
   AtividadeResumoItem,
   BoletimAluno,
   BoletimAnualAluno,
@@ -32,6 +33,7 @@ import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { PageHeader } from "@/components/PageHeader";
 import { BoletimTurmaCard } from "@/components/BoletimTurmaCard";
 import { AtividadesResumoCard } from "@/components/AtividadesResumoCard";
+import { PendenciasAtividadesCard } from "@/components/PendenciasAtividadesCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -374,6 +376,7 @@ function ConsultarAlunoContent() {
   const [faltasDetalhe, setFaltasDetalhe] = useState<FaltaRead[] | null>(null);
   const [faltasResumoTurma, setFaltasResumoTurma] = useState<FaltaResumoItem[] | null>(null);
   const [atividadesResumoTurma, setAtividadesResumoTurma] = useState<AtividadeResumoItem[] | null>(null);
+  const [pendenciasAtividades, setPendenciasAtividades] = useState<AtividadePendenciaRead[] | null>(null);
   const [registrosDisciplinares, setRegistrosDisciplinares] = useState<RegistroDisciplinar[] | null>(null);
   const [alunoDetalhe, setAlunoDetalhe] = useState<Aluno | null>(null);
   const [alunosTurmaCompletos, setAlunosTurmaCompletos] = useState<Aluno[]>([]);
@@ -515,12 +518,19 @@ function ConsultarAlunoContent() {
     if (!alunoId || !disciplinaId) return;
     setLancamentos(null);
     setAtividadesResumoTurma(null);
+    setPendenciasAtividades(null);
     try {
       if (alunoId === "todos") {
-        const resumo = await api.get<AtividadeResumoItem[]>(
-          `/atividades/resumo?turma=${encodeURIComponent(turma)}&disciplina_id=${disciplinaId}`
-        );
+        const [resumo, pendencias] = await Promise.all([
+          api.get<AtividadeResumoItem[]>(
+            `/atividades/resumo?turma=${encodeURIComponent(turma)}&disciplina_id=${disciplinaId}`
+          ),
+          api.get<AtividadePendenciaRead[]>(
+            `/atividades/pendencias?turma=${encodeURIComponent(turma)}&disciplina_id=${disciplinaId}`
+          ),
+        ]);
         setAtividadesResumoTurma(resumo);
+        setPendenciasAtividades(pendencias);
         return;
       }
       const params = new URLSearchParams({ disciplina_id: String(disciplinaId) });
@@ -994,6 +1004,10 @@ function ConsultarAlunoContent() {
       )}
 
       {aba === "atividades" && atividadesResumoTurma && <AtividadesResumoCard resumo={atividadesResumoTurma} />}
+
+      {aba === "atividades" && pendenciasAtividades && (
+        <PendenciasAtividadesCard pendencias={pendenciasAtividades} />
+      )}
 
       {aba === "atividades" && lancamentos !== null && (
         <Card>

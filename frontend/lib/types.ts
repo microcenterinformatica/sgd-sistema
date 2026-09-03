@@ -254,6 +254,20 @@ export interface AtividadeResumoItem {
   percentual: number;
 }
 
+export interface AlunoPendenteRead {
+  aluno_id: number;
+  aluno_nome: string;
+}
+
+export interface AtividadePendenciaRead {
+  atividade_id: number;
+  atividade_titulo: string;
+  tipo: TipoAtividade;
+  data: string;
+  data_entrega: string | null;
+  alunos_pendentes: AlunoPendenteRead[];
+}
+
 export interface LancamentoRead {
   id: number;
   atividade_id: number;

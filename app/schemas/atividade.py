@@ -62,3 +62,17 @@ class AtividadeResumoItem(SQLModel):
     total_atividades: int
     total_fez: int
     percentual: float
+
+
+class AlunoPendenteRead(SQLModel):
+    aluno_id: int
+    aluno_nome: str
+
+
+class AtividadePendenciaRead(SQLModel):
+    atividade_id: int
+    atividade_titulo: str
+    tipo: TipoAtividade
+    data: date
+    data_entrega: Optional[date]
+    alunos_pendentes: list[AlunoPendenteRead]

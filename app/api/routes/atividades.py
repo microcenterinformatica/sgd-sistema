@@ -14,8 +14,10 @@ from app.models.lancamento import Lancamento
 from app.models.turma import Turma
 from app.models.atividade import TipoAtividade
 from app.schemas.atividade import (
+    AlunoPendenteRead,
     AtividadeCreate,
     AtividadeNaoEntregueRead,
+    AtividadePendenciaRead,
     AtividadeRead,
     AtividadeResumoItem,
     AtividadeUpdate,
@@ -258,6 +260,60 @@ def resumo_atividades_por_turma(
         for a in alunos
     ]
     return sorted(resultado, key=lambda r: r.percentual, reverse=True)
+
+
+@router.get("/atividades/pendencias", response_model=list[AtividadePendenciaRead])
+def pendencias_atividades_por_turma(
+    turma: str, disciplina_id: int, session: SessionDep, usuario_atual: CurrentUserDep
+):
+    """Pra cada atividade da turma/disciplina, quem ainda não entregou — mesmo critério de
+    conclusão usado no /atividades/resumo (Lancamento.fez == True), só que detalhado por
+    atividade em vez de resumido em percentual. Atividades sem nenhuma pendência não entram
+    no resultado."""
+    atividades = session.exec(
+        select(Atividade).where(
+            Atividade.escola_id == usuario_atual.escola_id,
+            Atividade.turma == turma,
+            Atividade.disciplina_id == disciplina_id,
+            Atividade.ativo == True,  # noqa: E712
+            Atividade.tipo != TipoAtividade.prova,
+        )
+    ).all()
+    if not atividades:
+        return []
+
+    atividade_ids = {a.id for a in atividades}
+    alunos = _listar_alunos_por_turma(session, usuario_atual.escola_id, turma)
+
+    entregas = session.exec(
+        select(Lancamento.atividade_id, Lancamento.aluno_id).where(
+            Lancamento.atividade_id.in_(atividade_ids), Lancamento.fez == True  # noqa: E712
+        )
+    ).all()
+    entregues_por_atividade: dict[int, set[int]] = {}
+    for atividade_id, aluno_id in entregas:
+        entregues_por_atividade.setdefault(atividade_id, set()).add(aluno_id)
+
+    resultado = []
+    for atividade in atividades:
+        ja_entregaram = entregues_por_atividade.get(atividade.id, set())
+        pendentes = [
+            AlunoPendenteRead(aluno_id=a.id, aluno_nome=a.nome) for a in alunos if a.id not in ja_entregaram
+        ]
+        if pendentes:
+            resultado.append(
+                AtividadePendenciaRead(
+                    atividade_id=atividade.id,
+                    atividade_titulo=atividade.titulo,
+                    tipo=atividade.tipo,
+                    data=atividade.data,
+                    data_entrega=atividade.data_entrega,
+                    alunos_pendentes=pendentes,
+                )
+            )
+
+    resultado.sort(key=lambda r: r.data_entrega or r.data)
+    return resultado
 
 
 @router.get("/atividades/{atividade_id}/alunos-turma")
