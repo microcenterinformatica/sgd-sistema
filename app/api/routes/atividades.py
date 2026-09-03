@@ -345,7 +345,11 @@ def listar_lancamentos_do_aluno(
         select(Lancamento, Atividade, Disciplina)
         .join(Atividade, Lancamento.atividade_id == Atividade.id)
         .join(Disciplina, Atividade.disciplina_id == Disciplina.id)
-        .where(Lancamento.aluno_id == aluno_id, Atividade.escola_id == usuario_atual.escola_id)
+        .where(
+            Lancamento.aluno_id == aluno_id,
+            Atividade.escola_id == usuario_atual.escola_id,
+            Atividade.ativo == True,  # noqa: E712
+        )
     )
     if disciplina_id:
         query = query.where(Atividade.disciplina_id == disciplina_id)
