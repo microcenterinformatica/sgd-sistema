@@ -208,7 +208,7 @@ function EditarInfracaoDialog({
 
 function HistoricoContent() {
   const { user } = useAuth();
-  const podeExcluir = user?.papel === "admin_escola" || user?.papel === "coordenacao";
+  const podeGerenciar = user?.papel === "admin_escola" || user?.papel === "coordenacao";
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [punicoes, setPunicoes] = useState<Punicao[]>([]);
   const [registros, setRegistros] = useState<RegistroDisciplinar[]>([]);
@@ -406,12 +406,12 @@ function HistoricoContent() {
                             {evento.peso >= 0 ? `+${evento.peso}` : evento.peso}
                           </span>
                           <div className="flex flex-col items-stretch">
-                            {evento.tipo === "infracao" && evento.registroId !== undefined && (
+                            {podeGerenciar && evento.tipo === "infracao" && evento.registroId !== undefined && (
                               <Button variant="ghost" size="sm" className="w-full justify-center" onClick={() => setEditando({ aluno, evento })}>
                                 Editar
                               </Button>
                             )}
-                            {podeExcluir && evento.registroId !== undefined && (
+                            {podeGerenciar && evento.registroId !== undefined && (
                               <ConfirmDialog
                                 trigger={
                                   <Button variant="ghost" size="sm" className="w-full justify-center text-destructive">
