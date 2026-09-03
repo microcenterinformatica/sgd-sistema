@@ -134,6 +134,7 @@ export interface Disciplina {
   escola_id: number;
   nome: string;
   ativo: boolean;
+  eh_especialista: boolean;
 }
 
 export type SegmentoTurma = "fundamental_1" | "fundamental_2";

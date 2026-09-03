@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
 from app.models.atribuicao import Atribuicao
+from app.models.disciplina import Disciplina
 from app.models.professor import Professor
 from app.models.turma import SegmentoTurma, Turma
 from app.models.usuario import Usuario
@@ -78,6 +79,20 @@ def segmento_da_turma(session: Session, escola_id: int, turma_nome: str) -> Segm
         select(Turma).where(Turma.escola_id == escola_id, Turma.nome == turma_nome)
     ).first()
     return turma.segmento if turma else SegmentoTurma.fundamental_2
+
+
+def falta_agrupada_por_dia(session: Session, escola_id: int, turma: str, disciplina_id: int) -> bool:
+    """Verdadeiro quando a falta dessa disciplina/turma deve ser compartilhada entre
+    todas as disciplinas do professor regente (uma chamada só por dia, comportamento de
+    Fundamental 1), em vez de contada só pra essa disciplina especificamente.
+
+    Disciplinas marcadas como especialista (Inglês, Arte, Educação Física, Informática
+    etc.) sempre têm chamada própria, mesmo em turmas Fundamental 1, porque não são
+    dadas todo dia pelo mesmo professor regente — cada especialista marca a sua."""
+    if segmento_da_turma(session, escola_id, turma) != SegmentoTurma.fundamental_1:
+        return False
+    disciplina = session.get(Disciplina, disciplina_id)
+    return not (disciplina and disciplina.eh_especialista)
 
 
 def verificar_permissao_disciplina(

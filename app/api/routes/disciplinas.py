@@ -33,7 +33,7 @@ def listar_disciplinas(session: SessionDep, usuario_atual: CurrentUserDep):
     dependencies=[GerenciarDisciplinas],
 )
 def criar_disciplina(dados: DisciplinaCreate, session: SessionDep, usuario_atual: CurrentUserDep):
-    disciplina = Disciplina(escola_id=usuario_atual.escola_id, nome=dados.nome)
+    disciplina = Disciplina(escola_id=usuario_atual.escola_id, nome=dados.nome, eh_especialista=dados.eh_especialista)
     session.add(disciplina)
     try:
         session.commit()

@@ -8,7 +8,6 @@ from sqlmodel import select
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
 from app.api.routes.registros import DESCRICAO_MERITO_TURMA, DESCRICAO_REMOCAO_MERITO_TURMA
 from app.core.ano_letivo import ano_letivo_atual
-from app.core.permissoes import segmento_da_turma
 from app.models.aluno import Aluno
 from app.models.atividade import Atividade
 from app.models.disciplina import Disciplina
@@ -19,7 +18,7 @@ from app.models.professor import Professor
 from app.models.punicao import Punicao
 from app.models.registro_disciplinar import RegistroDisciplinar
 from app.models.registro_falta import RegistroFalta
-from app.models.turma import SegmentoTurma, Turma
+from app.models.turma import Turma
 from app.models.usuario import PapelUsuario, Usuario
 from app.schemas.aluno import AlunoCreate, AlunoRead, AlunoUpdate
 from app.services.pontuacao import aplicar_recuperacoes_pendentes
@@ -205,8 +204,6 @@ def gerar_relatorio_disciplinar(
         RegistroFalta.data >= periodo_inicio,
         RegistroFalta.data <= hoje,
     ]
-    if aluno.turma and segmento_da_turma(session, usuario_atual.escola_id, aluno.turma) == SegmentoTurma.fundamental_1:
-        condicoes_falta.append(RegistroFalta.disciplina_id.is_(None))
     faltas = session.exec(select(RegistroFalta).where(*condicoes_falta)).all()
     for f in faltas:
         eventos.append(EventoRelatorio(data=f.data, tipo="falta", descricao="Falta não justificada"))

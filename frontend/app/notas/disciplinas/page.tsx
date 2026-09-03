@@ -15,14 +15,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 function NovaDisciplinaForm({ onCriada }: { onCriada: () => void }) {
   const [nome, setNome] = useState("");
+  const [ehEspecialista, setEhEspecialista] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
     setSalvando(true);
     try {
-      await api.post("/disciplinas", { nome });
+      await api.post("/disciplinas", { nome, eh_especialista: ehEspecialista });
       setNome("");
+      setEhEspecialista(false);
       onCriada();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erro ao criar disciplina");
@@ -32,27 +34,49 @@ function NovaDisciplinaForm({ onCriada }: { onCriada: () => void }) {
   }
 
   return (
-    <form onSubmit={salvar} className="flex gap-2 items-end">
-      <div className="space-y-1 flex-1">
-        <Label>Nova disciplina</Label>
-        <Input required value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: História" />
+    <form onSubmit={salvar} className="space-y-2">
+      <div className="flex gap-2 items-end">
+        <div className="space-y-1 flex-1">
+          <Label>Nova disciplina</Label>
+          <Input required value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: História" />
+        </div>
+        <Button type="submit" disabled={salvando}>
+          <Plus />
+          Adicionar
+        </Button>
       </div>
-      <Button type="submit" disabled={salvando}>
-        <Plus />
-        Adicionar
-      </Button>
+      <label className="flex items-center gap-2 text-sm text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={ehEspecialista}
+          onChange={(e) => setEhEspecialista(e.target.checked)}
+          className="size-4 accent-primary"
+        />
+        Disciplina de especialista (Inglês, Arte, Educação Física, Informática...) — não é dada
+        todo dia pelo mesmo professor regente, então tem chamada própria mesmo em turmas de
+        Fundamental 1
+      </label>
     </form>
   );
 }
 
-function ListaDisciplinas({ disciplinas, onExcluida }: { disciplinas: Disciplina[]; onExcluida: () => void }) {
+function ListaDisciplinas({ disciplinas, onAtualizada }: { disciplinas: Disciplina[]; onAtualizada: () => void }) {
   async function excluir(id: number) {
     if (!confirm("Excluir esta disciplina?")) return;
     try {
       await api.delete(`/disciplinas/${id}`);
-      onExcluida();
+      onAtualizada();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erro ao excluir");
+    }
+  }
+
+  async function alternarEspecialista(d: Disciplina) {
+    try {
+      await api.put(`/disciplinas/${d.id}`, { eh_especialista: !d.eh_especialista });
+      onAtualizada();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao atualizar disciplina");
     }
   }
 
@@ -64,11 +88,22 @@ function ListaDisciplinas({ disciplinas, onExcluida }: { disciplinas: Disciplina
     <Card>
       <ul className="divide-y">
         {disciplinas.map((d) => (
-          <li key={d.id} className="flex items-center justify-between px-(--card-spacing) py-2">
+          <li key={d.id} className="flex items-center justify-between px-(--card-spacing) py-2 gap-3">
             <span className="text-sm text-foreground">{d.nome}</span>
-            <Button variant="destructive" size="icon-sm" onClick={() => excluir(d.id)} title="Excluir disciplina">
-              <Trash2 />
-            </Button>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={d.eh_especialista}
+                  onChange={() => alternarEspecialista(d)}
+                  className="size-4 accent-primary"
+                />
+                Especialista
+              </label>
+              <Button variant="destructive" size="icon-sm" onClick={() => excluir(d.id)} title="Excluir disciplina">
+                <Trash2 />
+              </Button>
+            </div>
           </li>
         ))}
       </ul>
@@ -238,7 +273,7 @@ function DisciplinasContent() {
         </CardHeader>
         <CardContent className="space-y-3">
           <NovaDisciplinaForm onCriada={carregarDisciplinas} />
-          <ListaDisciplinas disciplinas={disciplinas} onExcluida={carregarDisciplinas} />
+          <ListaDisciplinas disciplinas={disciplinas} onAtualizada={carregarDisciplinas} />
         </CardContent>
       </Card>
 

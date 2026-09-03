@@ -7,13 +7,12 @@ from fastapi import APIRouter, HTTPException, status
 from app.api.deps import CurrentUserDep, SessionDep
 from app.core.permissoes import (
     buscar_professor_do_usuario,
-    segmento_da_turma,
+    falta_agrupada_por_dia,
     verificar_permissao_turma_disciplina,
 )
 from app.models.aluno import Aluno
 from app.models.conteudo_aula import ConteudoAula
 from app.models.registro_falta import RegistroFalta
-from app.models.turma import SegmentoTurma
 from app.schemas.falta import (
     ChamadaAlunoStatus,
     ChamadaRead,
@@ -49,12 +48,8 @@ def _montar_chamada(
     alunos = _listar_alunos_por_turma(session, usuario_atual.escola_id, turma)
     aluno_ids = [a.id for a in alunos]
 
-    segmento = segmento_da_turma(session, usuario_atual.escola_id, turma)
-    filtro_disciplina = (
-        RegistroFalta.disciplina_id.is_(None)
-        if segmento == SegmentoTurma.fundamental_1
-        else RegistroFalta.disciplina_id == disciplina_id
-    )
+    agrupa = falta_agrupada_por_dia(session, usuario_atual.escola_id, turma, disciplina_id)
+    filtro_disciplina = RegistroFalta.disciplina_id.is_(None) if agrupa else RegistroFalta.disciplina_id == disciplina_id
     faltas_do_dia = session.exec(
         select(RegistroFalta).where(
             RegistroFalta.escola_id == usuario_atual.escola_id,
@@ -114,11 +109,8 @@ def salvar_chamada(dados: ChamadaSalvar, session: SessionDep, usuario_atual: Cur
                 status_code=status.HTTP_404_NOT_FOUND, detail=f"Aluno {item.aluno_id} não é dessa turma"
             )
 
-    segmento = segmento_da_turma(session, usuario_atual.escola_id, dados.turma)
-    e_fundamental_1 = segmento == SegmentoTurma.fundamental_1
-    filtro_disciplina = (
-        RegistroFalta.disciplina_id.is_(None) if e_fundamental_1 else RegistroFalta.disciplina_id == dados.disciplina_id
-    )
+    agrupa = falta_agrupada_por_dia(session, usuario_atual.escola_id, dados.turma, dados.disciplina_id)
+    filtro_disciplina = RegistroFalta.disciplina_id.is_(None) if agrupa else RegistroFalta.disciplina_id == dados.disciplina_id
 
     faltas_existentes = session.exec(
         select(RegistroFalta).where(
@@ -137,7 +129,7 @@ def salvar_chamada(dados: ChamadaSalvar, session: SessionDep, usuario_atual: Cur
             RegistroFalta(
                 aluno_id=item.aluno_id,
                 escola_id=usuario_atual.escola_id,
-                disciplina_id=None if e_fundamental_1 else dados.disciplina_id,
+                disciplina_id=None if agrupa else dados.disciplina_id,
                 data=dados.data,
                 justificada=item.justificada,
                 observacao=item.observacao,
@@ -202,13 +194,13 @@ def listar_faltas(
     query = select(RegistroFalta).where(RegistroFalta.escola_id == usuario_atual.escola_id)
     if aluno_id is not None:
         query = query.where(RegistroFalta.aluno_id == aluno_id)
-        aluno = session.get(Aluno, aluno_id)
-        if aluno and aluno.turma and segmento_da_turma(session, usuario_atual.escola_id, aluno.turma) == SegmentoTurma.fundamental_1:
-            query = query.where(RegistroFalta.disciplina_id.is_(None))
-        elif disciplina_id is not None:
-            query = query.where(RegistroFalta.disciplina_id == disciplina_id)
-    elif disciplina_id is not None:
-        query = query.where(RegistroFalta.disciplina_id == disciplina_id)
+    if disciplina_id is not None:
+        agrupa = False
+        if aluno_id is not None:
+            aluno = session.get(Aluno, aluno_id)
+            if aluno and aluno.turma:
+                agrupa = falta_agrupada_por_dia(session, usuario_atual.escola_id, aluno.turma, disciplina_id)
+        query = query.where(RegistroFalta.disciplina_id.is_(None) if agrupa else RegistroFalta.disciplina_id == disciplina_id)
     query = query.order_by(RegistroFalta.data.desc())
     return session.exec(query).all()
 
@@ -217,7 +209,7 @@ def listar_faltas(
 def resumo_faltas(
     disciplina_id: int, session: SessionDep, usuario_atual: CurrentUserDep, turma: str | None = None
 ):
-    if turma and segmento_da_turma(session, usuario_atual.escola_id, turma) == SegmentoTurma.fundamental_1:
+    if turma and falta_agrupada_por_dia(session, usuario_atual.escola_id, turma, disciplina_id):
         aluno_ids_da_turma = [a.id for a in _listar_alunos_por_turma(session, usuario_atual.escola_id, turma)]
         faltas = session.exec(
             select(RegistroFalta).where(

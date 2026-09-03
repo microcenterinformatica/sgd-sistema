@@ -15,3 +15,4 @@ class Disciplina(SQLModel, table=True):
     escola_id: int = Field(foreign_key="escola.id", index=True)
     nome: str
     ativo: bool = Field(default=True)
+    eh_especialista: bool = Field(default=False)
