@@ -405,24 +405,26 @@ function HistoricoContent() {
                           <span className={`text-sm font-semibold ${evento.peso >= 0 ? "text-destructive" : "text-emerald-600"}`}>
                             {evento.peso >= 0 ? `+${evento.peso}` : evento.peso}
                           </span>
-                          {evento.tipo === "infracao" && evento.registroId !== undefined && (
-                            <Button variant="ghost" size="sm" onClick={() => setEditando({ aluno, evento })}>
-                              Editar
-                            </Button>
-                          )}
-                          {podeExcluir && evento.registroId !== undefined && (
-                            <ConfirmDialog
-                              trigger={
-                                <Button variant="ghost" size="sm" className="text-destructive">
-                                  Excluir
-                                </Button>
-                              }
-                              title="Excluir registro?"
-                              description={`Isso removerá "${evento.descricao}" do histórico de ${aluno.nome} e recalculará a pontuação dele. Essa ação não pode ser desfeita.`}
-                              confirmLabel="Excluir"
-                              onConfirm={() => excluirRegistro(evento.registroId as number)}
-                            />
-                          )}
+                          <div className="flex flex-col items-stretch">
+                            {evento.tipo === "infracao" && evento.registroId !== undefined && (
+                              <Button variant="ghost" size="sm" onClick={() => setEditando({ aluno, evento })}>
+                                Editar
+                              </Button>
+                            )}
+                            {podeExcluir && evento.registroId !== undefined && (
+                              <ConfirmDialog
+                                trigger={
+                                  <Button variant="ghost" size="sm" className="text-destructive">
+                                    Excluir
+                                  </Button>
+                                }
+                                title="Excluir registro?"
+                                description={`Isso removerá "${evento.descricao}" do histórico de ${aluno.nome} e recalculará a pontuação dele. Essa ação não pode ser desfeita.`}
+                                confirmLabel="Excluir"
+                                onConfirm={() => excluirRegistro(evento.registroId as number)}
+                              />
+                            )}
+                          </div>
                         </div>
                       </li>
                     ))}
