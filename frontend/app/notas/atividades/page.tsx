@@ -6,7 +6,15 @@ import { toast } from "sonner";
 import { Plus, CheckCircle2 } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
-import { Aluno, Atividade, AtividadeResumoItem, BoletimAluno, CategoriaAtividade, Punicao } from "@/lib/types";
+import {
+  Aluno,
+  Atividade,
+  AtividadePendenciaRead,
+  AtividadeResumoItem,
+  BoletimAluno,
+  CategoriaAtividade,
+  Punicao,
+} from "@/lib/types";
 import {
   escolherDisciplinaInicial,
   escolherTurmaInicial,
@@ -18,6 +26,7 @@ import { useCategoriasAtividade } from "@/lib/useCategoriasAtividade";
 import { PageHeader } from "@/components/PageHeader";
 import { CategoriaAtividadeField } from "@/components/CategoriaAtividadeField";
 import { AtividadesResumoCard } from "@/components/AtividadesResumoCard";
+import { PendenciasAtividadesCard } from "@/components/PendenciasAtividadesCard";
 import { BoletimTurmaCard } from "@/components/BoletimTurmaCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -175,6 +184,7 @@ function AtividadesContent() {
   const [categoriaFiltro, setCategoriaFiltro] = useState<number | "todas">("todas");
   const [atividades, setAtividades] = useState<Atividade[] | null>(null);
   const [resumo, setResumo] = useState<AtividadeResumoItem[] | null>(null);
+  const [pendencias, setPendencias] = useState<AtividadePendenciaRead[] | null>(null);
   const [boletim, setBoletim] = useState<BoletimAluno[]>([]);
   const [alunosCompletos, setAlunosCompletos] = useState<Aluno[]>([]);
   const [punicoes, setPunicoes] = useState<Punicao[]>([]);
@@ -226,14 +236,18 @@ function AtividadesContent() {
     const params = new URLSearchParams({ turma, disciplina_id: String(disciplinaId) });
     if (dataInicio) params.set("data_inicio", dataInicio);
     if (dataFim) params.set("data_fim", dataFim);
-    const [listaAtividades, listaResumo, listaBoletim, listaAlunos] = await Promise.all([
+    const [listaAtividades, listaResumo, listaPendencias, listaBoletim, listaAlunos] = await Promise.all([
       api.get<Atividade[]>(`/atividades?${params.toString()}`),
       api.get<AtividadeResumoItem[]>(`/atividades/resumo?turma=${encodeURIComponent(turma)}&disciplina_id=${disciplinaId}`),
+      api.get<AtividadePendenciaRead[]>(
+        `/atividades/pendencias?turma=${encodeURIComponent(turma)}&disciplina_id=${disciplinaId}`
+      ),
       api.get<BoletimAluno[]>(`/boletim?${params.toString()}`),
       api.get<Aluno[]>("/alunos"),
     ]);
     setAtividades(listaAtividades.filter((a) => a.tipo !== "prova"));
     setResumo(listaResumo);
+    setPendencias(listaPendencias);
     setBoletim(listaBoletim);
     setAlunosCompletos(listaAlunos);
   }
@@ -333,6 +347,8 @@ function AtividadesContent() {
           )}
 
           {resumo && <AtividadesResumoCard resumo={resumo} />}
+
+          {pendencias && <PendenciasAtividadesCard pendencias={pendencias} />}
 
           <BoletimTurmaCard boletim={boletim} alunosCompletosPorId={alunosCompletosPorId} punicoes={punicoes} />
         </>
