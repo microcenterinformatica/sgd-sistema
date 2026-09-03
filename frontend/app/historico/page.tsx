@@ -389,8 +389,8 @@ function HistoricoContent() {
                 ) : (
                   <ul className="divide-y">
                     {eventos.map((evento) => (
-                      <li key={evento.key} className="py-2 flex items-center justify-between gap-3">
-                        <div>
+                      <li key={evento.key} className="py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
+                        <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <BadgeEvento tipo={evento.tipo} />
                             <p className="text-sm font-medium text-foreground">{evento.descricao}</p>
@@ -401,7 +401,7 @@ function HistoricoContent() {
                             {evento.observacao ? ` — ${evento.observacao}` : ""}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-end sm:justify-start gap-2">
                           <span className={`text-sm font-semibold ${evento.peso >= 0 ? "text-destructive" : "text-emerald-600"}`}>
                             {evento.peso >= 0 ? `+${evento.peso}` : evento.peso}
                           </span>
