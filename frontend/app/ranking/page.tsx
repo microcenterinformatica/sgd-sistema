@@ -346,23 +346,41 @@ function RankingContent() {
         title="Patrimônio Disciplinar"
         subtitle="Veracom = mérito − ocorrências de indisciplina − (peso × faltas não justificadas) − (peso × atividades não entregues)."
         action={
-          <div className="flex flex-wrap justify-center gap-2">
-            <Button
-              variant={visao === "turma" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setVisao("turma")}
-            >
-              Por turma
-            </Button>
-            <Button
-              variant={visao === "geral" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setVisao("geral")}
-            >
-              Geral
-            </Button>
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-wrap justify-center items-center gap-2">
+              <Button
+                variant={visao === "turma" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setVisao("turma")}
+              >
+                Por turma
+              </Button>
+              <Button
+                variant={visao === "geral" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setVisao("geral")}
+              >
+                Geral
+              </Button>
+              {visao === "turma" && turmasDisponiveis.length > 0 && (
+                <Select value={turmaFiltro} onValueChange={(v) => setTurmaFiltro(v ?? "todas")}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as turmas</SelectItem>
+                    {turmasDisponiveis.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        Turma {t}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="sem-turma">Sem turma</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
             {turmaSelecionada && (
-              <>
+              <div className="flex flex-wrap justify-center gap-2">
                 <Button variant="merito" size="sm" onClick={() => setDialogoMeritoTurma("dar")}>
                   <Award />
                   Mérito para a turma
@@ -371,7 +389,7 @@ function RankingContent() {
                   <MinusCircle />
                   Remover mérito da turma
                 </Button>
-              </>
+              </div>
             )}
           </div>
         }
@@ -412,22 +430,6 @@ function RankingContent() {
 
       {visao === "turma" && (
         <>
-          {turmasDisponiveis.length > 0 && (
-            <Select value={turmaFiltro} onValueChange={(v) => setTurmaFiltro(v ?? "todas")}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas as turmas</SelectItem>
-                {turmasDisponiveis.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    Turma {t}
-                  </SelectItem>
-                ))}
-                <SelectItem value="sem-turma">Sem turma</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
 
           {gruposExibidos?.map((grupo) => (
             <div key={grupo.turma} className="space-y-2">
