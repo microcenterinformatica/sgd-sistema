@@ -333,8 +333,13 @@ function RankingContent() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
+      <MoedaVeracom
+        variant="coin"
+        size="lg"
+        className="w-32 h-32 sm:w-44 sm:h-44 drop-shadow-md"
+      />
+
       <PageHeader
-        icon={<MoedaVeracom size="md" />}
         title="Patrimônio Disciplinar"
         subtitle="Veracom = mérito − ocorrências de indisciplina − (peso × faltas não justificadas) − (peso × atividades não entregues)."
         action={
