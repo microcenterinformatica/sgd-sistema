@@ -333,11 +333,13 @@ function RankingContent() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
-      <MoedaVeracom
-        variant="coin"
-        size="lg"
-        className="w-32 h-32 sm:w-44 sm:h-44 drop-shadow-md"
-      />
+      <div className="flex justify-center">
+        <MoedaVeracom
+          variant="coin"
+          size="lg"
+          className="w-32 h-32 sm:w-44 sm:h-44 drop-shadow-md"
+        />
+      </div>
 
       <PageHeader
         title="Patrimônio Disciplinar"
