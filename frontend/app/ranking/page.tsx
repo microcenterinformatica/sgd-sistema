@@ -342,10 +342,11 @@ function RankingContent() {
       </div>
 
       <PageHeader
+        centered
         title="Patrimônio Disciplinar"
         subtitle="Veracom = mérito − ocorrências de indisciplina − (peso × faltas não justificadas) − (peso × atividades não entregues)."
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-center gap-2">
             <Button
               variant={visao === "turma" ? "default" : "outline"}
               size="sm"
