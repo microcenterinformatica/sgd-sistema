@@ -10,6 +10,7 @@ import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
 import { ConfiguracaoRanking, Professor, RankingItem, RegistroMeritoTurmaResponse } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
+import { MoedaVeracom } from "@/components/MoedaVeracom";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -203,7 +204,10 @@ function TotalVeracom({
   return (
     <div className="flex flex-col items-end">
       <span className="text-xs text-muted-foreground">Total</span>
-      <span className="text-amber-600 font-bold">{totalVeracom} Veracom</span>
+      <span className="flex items-center gap-1.5 text-amber-600 font-bold">
+        <MoedaVeracom size="sm" />
+        {totalVeracom} Veracom
+      </span>
       {cotacao !== null && (
         <span className="text-xs text-muted-foreground">1 Veracom = {formatarCotacao(cotacao)}</span>
       )}
@@ -246,7 +250,10 @@ function LinhaRanking({ item, posicao }: { item: RankingItem; posicao: number })
           <div className="text-xs text-muted-foreground">{detalhe(item)}</div>
         </div>
       </div>
-      <span className="text-amber-600 font-bold">{item.pontuacao} Veracom</span>
+      <span className="flex items-center gap-1.5 text-amber-600 font-bold">
+        <MoedaVeracom size="sm" />
+        {item.pontuacao} Veracom
+      </span>
     </div>
   );
 }
@@ -327,6 +334,7 @@ function RankingContent() {
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <PageHeader
+        icon={<MoedaVeracom size="md" />}
         title="Patrimônio Disciplinar"
         subtitle="Veracom = mérito − ocorrências de indisciplina − (peso × faltas não justificadas) − (peso × atividades não entregues)."
         action={

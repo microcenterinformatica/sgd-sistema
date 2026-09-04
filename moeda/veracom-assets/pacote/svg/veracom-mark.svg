@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"
+     width="512" height="512" role="img" aria-label="Moeda Veracom">
+  <title>Veracom</title>
+  <defs>
+    <linearGradient id="ouro" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0"    stop-color="#F7E9A0"/>
+      <stop offset="0.45" stop-color="#E3C558"/>
+      <stop offset="1"    stop-color="#B8912F"/>
+    </linearGradient>
+    <linearGradient id="prata" x1="0" y1="0" x2="0.2" y2="1">
+      <stop offset="0"    stop-color="#D9DCE2"/>
+      <stop offset="0.5"  stop-color="#AFB5BF"/>
+      <stop offset="1"    stop-color="#7C838F"/>
+    </linearGradient>
+  </defs>
+
+  <g stroke-linejoin="round">
+    <!-- aro externo -->
+    <circle cx="256.0" cy="256.0" r="207" fill="none"
+            stroke="url(#ouro)" stroke-width="30"/>
+    <circle cx="256.0" cy="256.0" r="222" fill="none" stroke="#252A3D" stroke-width="4"/>
+    <circle cx="256.0" cy="256.0" r="192" fill="none" stroke="#252A3D" stroke-width="4"/>
+
+    <!-- arcos internos quebrados -->
+    <path d="M 91.67,221.07 A 168,168 0 0 1 221.07,91.67" fill="none" stroke="#252A3D" stroke-width="15" stroke-linecap="round"/>
+    <path d="M 290.93,91.67 A 168,168 0 0 1 420.33,221.07" fill="none" stroke="#252A3D" stroke-width="15" stroke-linecap="round"/>
+    <path d="M 420.33,290.93 A 168,168 0 0 1 290.93,420.33" fill="none" stroke="#252A3D" stroke-width="15" stroke-linecap="round"/>
+    <path d="M 221.07,420.33 A 168,168 0 0 1 91.67,290.93" fill="none" stroke="#252A3D" stroke-width="15" stroke-linecap="round"/>
+
+    <!-- V central -->
+    <g transform="translate(256,292) scale(0.93) translate(-256,-292)">
+      <path d="M 96,166 L 216,166 L 194,196 L 266,316 L 338,196 L 316,166 L 418,166 L 400,196 L 259,430 L 118,196 Z" fill="url(#ouro)" stroke="#252A3D" stroke-width="5.4"/>
+    </g>
+
+    <!-- estrelas do aro -->
+    <path d="M 256.0,-7 L 263.14,33.86 L 282.0,41 L 263.14,48.14 L 256.0,89 L 248.86,48.14 L 230.0,41 L 248.86,33.86 Z"  fill="url(#ouro)" stroke="#252A3D" stroke-width="4"/>
+    <path d="M 256.0,423 L 263.14,463.86 L 282.0,471 L 263.14,478.14 L 256.0,519 L 248.86,478.14 L 230.0,471 L 248.86,463.86 Z" fill="url(#ouro)" stroke="#252A3D" stroke-width="4"/>
+
+  </g>
+</svg>

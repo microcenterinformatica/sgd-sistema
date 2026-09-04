@@ -6,7 +6,7 @@ export function PageHeader({
   subtitle,
   action,
 }: {
-  icon?: string;
+  icon?: ReactNode;
   title: string;
   subtitle?: string;
   action?: ReactNode;
