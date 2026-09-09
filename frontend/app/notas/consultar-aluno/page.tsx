@@ -382,7 +382,7 @@ function ConsultarAlunoContent() {
   const [alunosTurmaCompletos, setAlunosTurmaCompletos] = useState<Aluno[]>([]);
   const [conteudos, setConteudos] = useState<ConteudoAulaRead[] | null>(null);
   const [punicoes, setPunicoes] = useState<Punicao[]>([]);
-  const [diasRelatorio, setDiasRelatorio] = useState("7");
+  const [diasRelatorio, setDiasRelatorio] = useState("3650");
   const [incluirProfessorRelatorio, setIncluirProfessorRelatorio] = useState(true);
   const [incluirObservacoesRelatorio, setIncluirObservacoesRelatorio] = useState(true);
   const [gerandoRelatorioPdf, setGerandoRelatorioPdf] = useState(false);
@@ -886,11 +886,6 @@ function ConsultarAlunoContent() {
                   Incluir observações do(a) professor(a)
                 </label>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Preenchendo o <b>Período</b> acima (data início/fim), o relatório usa exatamente essas
-                datas em vez do atalho &quot;Últimos N dias&quot;. O PDF traz também a tabela com as fases
-                de conduta disciplinar da escola, destacando a fase atual do aluno.
-              </p>
               {alunoId === "todos" && (
                 <p className="text-xs text-muted-foreground">
                   O relatório em PDF é individual — selecione um aluno específico (não &quot;todos&quot;) pra
