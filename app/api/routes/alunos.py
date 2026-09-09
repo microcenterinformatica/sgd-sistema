@@ -117,15 +117,6 @@ def obter_aluno(aluno_id: int, session: SessionDep, usuario_atual: CurrentUserDe
     return aluno
 
 
-def _situacao_aluno(session: SessionDep, escola_id: int, pontos: int) -> str:
-    punicao = session.exec(
-        select(Punicao)
-        .where(Punicao.escola_id == escola_id, Punicao.ativo == True, Punicao.pontuacao_minima <= pontos)  # noqa: E712
-        .order_by(Punicao.pontuacao_minima.desc())
-    ).first()
-    return punicao.descricao if punicao else "Sem conduta"
-
-
 def _periodo_relatorio(
     dias: int, data_inicio: Optional[date], data_fim: Optional[date]
 ) -> tuple[date, date]:
@@ -259,11 +250,10 @@ def gerar_relatorio_disciplinar(
 
     eventos.sort(key=lambda e: e.data if isinstance(e.data, datetime) else datetime.combine(e.data, datetime.min.time()))
 
-    situacao = _situacao_aluno(session, usuario_atual.escola_id, aluno.pontos_atuais)
     punicoes = session.exec(
         select(Punicao).where(Punicao.escola_id == usuario_atual.escola_id, Punicao.ativo == True)  # noqa: E712
     ).all()
-    pdf_bytes = gerar_pdf_historico_aluno(escola, aluno, eventos, periodo_inicio, hoje, situacao, punicoes)
+    pdf_bytes = gerar_pdf_historico_aluno(escola, aluno, eventos, periodo_inicio, hoje, punicoes)
 
     nome_arquivo = f"relatorio_{aluno.matricula}_{hoje.isoformat()}.pdf"
     return Response(

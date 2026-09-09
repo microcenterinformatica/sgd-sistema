@@ -52,7 +52,6 @@ def gerar_pdf_historico_aluno(
     eventos: list[EventoRelatorio],
     periodo_inicio: date,
     periodo_fim: date,
-    situacao: str,
     punicoes: Sequence[Punicao] = (),
 ) -> bytes:
     buffer = BytesIO()
@@ -82,8 +81,7 @@ def gerar_pdf_historico_aluno(
         f"<b>Aluno:</b> {aluno.nome} &nbsp;&nbsp; <b>Matrícula:</b> {aluno.matricula}"
         f"{f' &nbsp;&nbsp; <b>Turma:</b> {aluno.turma}' if aluno.turma else ''}<br/>"
         f"<b>Período:</b> {periodo_inicio.strftime('%d/%m/%Y')} a {periodo_fim.strftime('%d/%m/%Y')}<br/>"
-        f"<b>Pontuação disciplinar atual:</b> {aluno.pontos_atuais} pontos &nbsp;&nbsp; "
-        f"<b>Situação:</b> {situacao}"
+        f"<b>Pontuação disciplinar:</b> {aluno.pontos_atuais} pontos"
     )
     elementos.append(Paragraph(info, label))
     elementos.append(Spacer(1, 0.5 * cm))
