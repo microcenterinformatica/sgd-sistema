@@ -119,13 +119,19 @@ def obter_aluno(aluno_id: int, session: SessionDep, usuario_atual: CurrentUserDe
 
 def _periodo_relatorio(
     dias: int, data_inicio: Optional[date], data_fim: Optional[date]
-) -> tuple[date, date]:
+) -> tuple[Optional[date], date]:
     """Prioriza data_inicio/data_fim (período explícito escolhido em Consultas);
     cai pra `dias` (últimos N dias a partir de hoje) só quando nenhuma data é
-    passada — mantém compatibilidade com o link de WhatsApp/dropdown antigo."""
+    passada — mantém compatibilidade com o link de WhatsApp/dropdown antigo.
+    `dias>=3650` é o valor usado pelo atalho "Histórico completo" do dropdown —
+    em vez de mostrar uma data de 10 anos atrás (confuso pra quem não tem
+    registro nenhum tão antigo), retorna `None` como início: sem limite
+    inferior real, exibido como "Histórico completo" no relatório."""
     hoje = date.today()
     if data_inicio or data_fim:
         return (data_inicio or hoje, data_fim or hoje)
+    if dias >= 3650:
+        return (None, hoje)
     return (hoje - timedelta(days=max(dias, 1) - 1), hoje)
 
 
@@ -145,12 +151,16 @@ def link_whatsapp_relatorio_disciplinar(
     escola = session.get(Escola, usuario_atual.escola_id)
 
     periodo_inicio, periodo_fim = _periodo_relatorio(dias, data_inicio, data_fim)
+    periodo_str = (
+        f"a todo o histórico até *{periodo_fim.strftime('%d/%m/%Y')}*"
+        if periodo_inicio is None
+        else f"ao período de *{periodo_inicio.strftime('%d/%m/%Y')}* a *{periodo_fim.strftime('%d/%m/%Y')}*"
+    )
 
     mensagem = montar_mensagem_relatorio(
         escola_nome=escola.nome,
         aluno_nome=aluno.nome,
-        periodo_inicio_str=periodo_inicio.strftime("%d/%m/%Y"),
-        periodo_fim_str=periodo_fim.strftime("%d/%m/%Y"),
+        periodo_str=periodo_str,
     )
     return {"whatsapp_link": gerar_link_whatsapp(aluno.whatsapp_responsavel, mensagem)}
 
@@ -178,7 +188,8 @@ def gerar_relatorio_disciplinar(
     escola = session.get(Escola, usuario_atual.escola_id)
 
     periodo_inicio, hoje = _periodo_relatorio(dias, data_inicio, data_fim)
-    inicio_dt = datetime.combine(periodo_inicio, datetime.min.time())
+    limite_inicio = periodo_inicio or date.min
+    inicio_dt = datetime.combine(limite_inicio, datetime.min.time())
     fim_dt = datetime.combine(hoje, datetime.max.time())
 
     registros = session.exec(
@@ -219,7 +230,7 @@ def gerar_relatorio_disciplinar(
     condicoes_falta = [
         RegistroFalta.aluno_id == aluno_id,
         RegistroFalta.justificada == False,  # noqa: E712
-        RegistroFalta.data >= periodo_inicio,
+        RegistroFalta.data >= limite_inicio,
         RegistroFalta.data <= hoje,
     ]
     faltas = session.exec(select(RegistroFalta).where(*condicoes_falta)).all()
@@ -239,7 +250,7 @@ def gerar_relatorio_disciplinar(
     ).all()
     for lancamento, atividade, disciplina in nao_entregas:
         data_evento = atividade.data_entrega or atividade.data
-        if periodo_inicio <= data_evento <= hoje:
+        if limite_inicio <= data_evento <= hoje:
             eventos.append(
                 EventoRelatorio(
                     data=data_evento,
