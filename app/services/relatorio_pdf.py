@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from io import BytesIO
-from typing import Optional
+from typing import Optional, Sequence
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -12,6 +12,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 from app.core.tempo import para_horario_local
 from app.models.aluno import Aluno
 from app.models.escola import Escola
+from app.models.punicao import Punicao
 
 ROTULO_TIPO_EVENTO = {
     "infracao": "Conduta Indisciplinar",
@@ -52,6 +53,7 @@ def gerar_pdf_historico_aluno(
     periodo_inicio: date,
     periodo_fim: date,
     situacao: str,
+    punicoes: Sequence[Punicao] = (),
 ) -> bytes:
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -84,7 +86,7 @@ def gerar_pdf_historico_aluno(
         f"<b>Situação:</b> {situacao}"
     )
     elementos.append(Paragraph(info, label))
-    elementos.append(Spacer(1, 0.6 * cm))
+    elementos.append(Spacer(1, 0.5 * cm))
 
     if not eventos:
         elementos.append(Paragraph("Nenhuma ocorrência registrada no período.", estilos["Normal"]))
@@ -127,7 +129,18 @@ def gerar_pdf_historico_aluno(
         tabela.setStyle(TableStyle(estilo_tabela))
         elementos.append(tabela)
 
-    elementos.append(Spacer(1, 0.8 * cm))
+    if punicoes:
+        rodape_texto = ParagraphStyle(
+            "RodapeCondutas", parent=estilos["Normal"], fontSize=8.5, leading=11, textColor=colors.HexColor("#666666")
+        )
+        punicoes_ordenadas = sorted(punicoes, key=lambda p: p.pontuacao_minima)
+        partes = [f"{p.pontuacao_minima}+ {p.descricao}" for p in punicoes_ordenadas]
+        texto_fases = "<b>Fases de conduta disciplinar da escola:</b> " + " * ".join(partes)
+
+        elementos.append(Spacer(1, 0.8 * cm))
+        elementos.append(Paragraph(texto_fases, rodape_texto))
+
+    elementos.append(Spacer(1, 0.4 * cm))
     rodape = f"Relatório gerado em {para_horario_local(datetime.now(timezone.utc)).strftime('%d/%m/%Y %H:%M')}."
     elementos.append(
         Paragraph(

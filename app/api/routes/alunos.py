@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func
@@ -125,9 +126,26 @@ def _situacao_aluno(session: SessionDep, escola_id: int, pontos: int) -> str:
     return punicao.descricao if punicao else "Sem conduta"
 
 
+def _periodo_relatorio(
+    dias: int, data_inicio: Optional[date], data_fim: Optional[date]
+) -> tuple[date, date]:
+    """Prioriza data_inicio/data_fim (período explícito escolhido em Consultas);
+    cai pra `dias` (últimos N dias a partir de hoje) só quando nenhuma data é
+    passada — mantém compatibilidade com o link de WhatsApp/dropdown antigo."""
+    hoje = date.today()
+    if data_inicio or data_fim:
+        return (data_inicio or hoje, data_fim or hoje)
+    return (hoje - timedelta(days=max(dias, 1) - 1), hoje)
+
+
 @router.get("/{aluno_id}/relatorio-disciplinar-whatsapp")
 def link_whatsapp_relatorio_disciplinar(
-    aluno_id: int, session: SessionDep, usuario_atual: CurrentUserDep, dias: int = 7
+    aluno_id: int,
+    session: SessionDep,
+    usuario_atual: CurrentUserDep,
+    dias: int = 7,
+    data_inicio: Optional[date] = None,
+    data_fim: Optional[date] = None,
 ):
     """Link wa.me (texto apenas, sem anexo) pra acompanhar o PDF baixado via
     /relatorio-disciplinar — o wa.me não anexa arquivo automaticamente, quem envia
@@ -135,31 +153,40 @@ def link_whatsapp_relatorio_disciplinar(
     aluno = _get_aluno_da_escola(session, aluno_id, usuario_atual.escola_id)
     escola = session.get(Escola, usuario_atual.escola_id)
 
-    hoje = date.today()
-    periodo_inicio = hoje - timedelta(days=max(dias, 1) - 1)
+    periodo_inicio, periodo_fim = _periodo_relatorio(dias, data_inicio, data_fim)
 
     mensagem = montar_mensagem_relatorio(
         escola_nome=escola.nome,
         aluno_nome=aluno.nome,
         periodo_inicio_str=periodo_inicio.strftime("%d/%m/%Y"),
-        periodo_fim_str=hoje.strftime("%d/%m/%Y"),
+        periodo_fim_str=periodo_fim.strftime("%d/%m/%Y"),
     )
     return {"whatsapp_link": gerar_link_whatsapp(aluno.whatsapp_responsavel, mensagem)}
 
 
 @router.get("/{aluno_id}/relatorio-disciplinar")
 def gerar_relatorio_disciplinar(
-    aluno_id: int, session: SessionDep, usuario_atual: CurrentUserDep, dias: int = 7
+    aluno_id: int,
+    session: SessionDep,
+    usuario_atual: CurrentUserDep,
+    dias: int = 7,
+    data_inicio: Optional[date] = None,
+    data_fim: Optional[date] = None,
+    incluir_professor: bool = True,
+    incluir_observacoes: bool = True,
 ):
     """Relatório em PDF com infrações, méritos, faltas não justificadas e atividades não
-    entregues do aluno num período (padrão: últimos 7 dias) — pensado para anexar
-    manualmente numa mensagem semanal ao responsável via WhatsApp."""
+    entregues do aluno num período (padrão: últimos 7 dias, ou o período explícito
+    escolhido em Consultas) — pensado para anexar manualmente numa mensagem ao
+    responsável via WhatsApp. Traz também a tabela com as fases de conduta
+    disciplinar cadastradas na escola, destacando a fase atual do aluno.
+    `incluir_professor`/`incluir_observacoes` controlam se o nome do(a) professor(a) e a
+    observação de cada indisciplina/mérito aparecem no PDF (escolha do professor em Consultas)."""
     aluno = _get_aluno_da_escola(session, aluno_id, usuario_atual.escola_id)
     aplicar_recuperacoes_pendentes(session, [aluno], usuario_atual.escola_id)
     escola = session.get(Escola, usuario_atual.escola_id)
 
-    hoje = date.today()
-    periodo_inicio = hoje - timedelta(days=max(dias, 1) - 1)
+    periodo_inicio, hoje = _periodo_relatorio(dias, data_inicio, data_fim)
     inicio_dt = datetime.combine(periodo_inicio, datetime.min.time())
     fim_dt = datetime.combine(hoje, datetime.max.time())
 
@@ -192,8 +219,8 @@ def gerar_relatorio_disciplinar(
             tipo=r.tipo.value,
             descricao=r.descricao,
             peso=r.peso,
-            professor_nome=professor_nome_de(r),
-            observacao=r.observacao,
+            professor_nome=professor_nome_de(r) if incluir_professor else None,
+            observacao=r.observacao if incluir_observacoes else None,
         )
         for r in registros
     ]
@@ -233,7 +260,10 @@ def gerar_relatorio_disciplinar(
     eventos.sort(key=lambda e: e.data if isinstance(e.data, datetime) else datetime.combine(e.data, datetime.min.time()))
 
     situacao = _situacao_aluno(session, usuario_atual.escola_id, aluno.pontos_atuais)
-    pdf_bytes = gerar_pdf_historico_aluno(escola, aluno, eventos, periodo_inicio, hoje, situacao)
+    punicoes = session.exec(
+        select(Punicao).where(Punicao.escola_id == usuario_atual.escola_id, Punicao.ativo == True)  # noqa: E712
+    ).all()
+    pdf_bytes = gerar_pdf_historico_aluno(escola, aluno, eventos, periodo_inicio, hoje, situacao, punicoes)
 
     nome_arquivo = f"relatorio_{aluno.matricula}_{hoje.isoformat()}.pdf"
     return Response(

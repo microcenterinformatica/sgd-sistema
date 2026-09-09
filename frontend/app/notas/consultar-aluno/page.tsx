@@ -383,8 +383,16 @@ function ConsultarAlunoContent() {
   const [conteudos, setConteudos] = useState<ConteudoAulaRead[] | null>(null);
   const [punicoes, setPunicoes] = useState<Punicao[]>([]);
   const [diasRelatorio, setDiasRelatorio] = useState("7");
+  const [incluirProfessorRelatorio, setIncluirProfessorRelatorio] = useState(true);
+  const [incluirObservacoesRelatorio, setIncluirObservacoesRelatorio] = useState(true);
   const [gerandoRelatorioPdf, setGerandoRelatorioPdf] = useState(false);
   const [linkWhatsappRelatorio, setLinkWhatsappRelatorio] = useState<string | null>(null);
+
+  const registrosDisciplinaresFiltrados = (registrosDisciplinares ?? []).filter(
+    (r) =>
+      (!dataInicio || r.data_hora.slice(0, 10) >= dataInicio) &&
+      (!dataFim || r.data_hora.slice(0, 10) <= dataFim)
+  );
 
   useEffect(() => {
     api.get<Punicao[]>("/punicoes").then(setPunicoes).catch(() => {});
@@ -564,12 +572,27 @@ function ConsultarAlunoContent() {
     }
   }
 
+  function paramsRelatorio(): string {
+    const params = new URLSearchParams();
+    // Período explícito (data início/fim, aba Disciplina) tem prioridade sobre o
+    // dropdown de "últimos N dias" — mesma prioridade aplicada no backend.
+    if (dataInicio || dataFim) {
+      if (dataInicio) params.set("data_inicio", dataInicio);
+      if (dataFim) params.set("data_fim", dataFim);
+    } else {
+      params.set("dias", diasRelatorio);
+    }
+    params.set("incluir_professor", String(incluirProfessorRelatorio));
+    params.set("incluir_observacoes", String(incluirObservacoesRelatorio));
+    return params.toString();
+  }
+
   async function executarDownloadRelatorio() {
     if (typeof alunoId !== "number") return;
     const alunoSelecionado = alunos.find((a) => a.id === alunoId);
     try {
       await baixarArquivo(
-        `/alunos/${alunoId}/relatorio-disciplinar?dias=${diasRelatorio}`,
+        `/alunos/${alunoId}/relatorio-disciplinar?${paramsRelatorio()}`,
         `relatorio_${alunoSelecionado?.matricula ?? alunoId}.pdf`
       );
     } catch (err) {
@@ -584,7 +607,7 @@ function ConsultarAlunoContent() {
     setGerandoRelatorioPdf(true);
     try {
       const resp = await api.get<{ whatsapp_link: string | null }>(
-        `/alunos/${alunoId}/relatorio-disciplinar-whatsapp?dias=${diasRelatorio}`
+        `/alunos/${alunoId}/relatorio-disciplinar-whatsapp?${paramsRelatorio()}`
       );
       if (resp.whatsapp_link) {
         setLinkWhatsappRelatorio(resp.whatsapp_link);
@@ -669,7 +692,8 @@ function ConsultarAlunoContent() {
   const mostrarTurma = !modoTodasDisciplinas;
   const mostrarDisciplina = aba !== "historico_disciplinar";
   const mostrarAluno = aba !== "conteudo";
-  const mostrarPeriodo = aba === "periodo" || aba === "frequencia" || aba === "atividades" || aba === "conteudo";
+  const mostrarPeriodo =
+    aba === "periodo" || aba === "frequencia" || aba === "atividades" || aba === "conteudo" || aba === "historico_disciplinar";
   const consultarDesabilitado = aba === "conteudo" ? (todasDisciplinas ? false : !disciplinaId) : !alunoId || !disciplinaId;
 
   return (
@@ -819,7 +843,11 @@ function ConsultarAlunoContent() {
                 <span className="text-sm text-muted-foreground mr-auto">
                   Relatório em PDF pra enviar ao responsável:
                 </span>
-                <Select value={diasRelatorio} onValueChange={(v) => setDiasRelatorio(v ?? "7")}>
+                <Select
+                  value={diasRelatorio}
+                  onValueChange={(v) => setDiasRelatorio(v ?? "7")}
+                  disabled={!!(dataInicio || dataFim)}
+                >
                   <SelectTrigger className="w-[160px]">
                     <SelectValue />
                   </SelectTrigger>
@@ -838,6 +866,31 @@ function ConsultarAlunoContent() {
                   {gerandoRelatorioPdf ? "Gerando..." : "Baixar relatório (PDF)"}
                 </Button>
               </div>
+              <div className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={incluirProfessorRelatorio}
+                    onChange={(e) => setIncluirProfessorRelatorio(e.target.checked)}
+                    className="size-4 accent-primary"
+                  />
+                  Incluir nome do(a) professor(a)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={incluirObservacoesRelatorio}
+                    onChange={(e) => setIncluirObservacoesRelatorio(e.target.checked)}
+                    className="size-4 accent-primary"
+                  />
+                  Incluir observações do(a) professor(a)
+                </label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Preenchendo o <b>Período</b> acima (data início/fim), o relatório usa exatamente essas
+                datas em vez do atalho &quot;Últimos N dias&quot;. O PDF traz também a tabela com as fases
+                de conduta disciplinar da escola, destacando a fase atual do aluno.
+              </p>
               {alunoId === "todos" && (
                 <p className="text-xs text-muted-foreground">
                   O relatório em PDF é individual — selecione um aluno específico (não &quot;todos&quot;) pra
@@ -1059,10 +1112,14 @@ function ConsultarAlunoContent() {
           <CardContent className="divide-y">
             {registrosDisciplinares === null ? (
               <p className="text-sm text-muted-foreground">Carregando...</p>
-            ) : registrosDisciplinares.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma indisciplina ou mérito registrado.</p>
+            ) : registrosDisciplinaresFiltrados.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {registrosDisciplinares.length === 0
+                  ? "Nenhuma indisciplina ou mérito registrado."
+                  : "Nenhuma indisciplina ou mérito registrado no período selecionado."}
+              </p>
             ) : (
-              registrosDisciplinares.map((r) => (
+              registrosDisciplinaresFiltrados.map((r) => (
                 <div key={r.id} className="py-2 flex items-center justify-between gap-3 text-sm first:pt-0">
                   <div>
                     <div className="flex items-center gap-2">
