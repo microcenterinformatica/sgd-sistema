@@ -1,17 +1,24 @@
-from fastapi import APIRouter, Depends
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlmodel import func, select
 
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
 from app.models.aluno import Aluno
 from app.models.atividade import Atividade
 from app.models.configuracao_ranking import ConfiguracaoRanking
+from app.models.escola import Escola
 from app.models.lancamento import Lancamento
 from app.models.registro_disciplinar import RegistroDisciplinar, TipoRegistro
 from app.models.registro_falta import RegistroFalta
 from app.models.usuario import PapelUsuario
 from app.schemas.ranking import ConfiguracaoRankingRead, ConfiguracaoRankingUpdate, RankingItem
+from app.services.ranking_pdf import gerar_pdf_ranking_turma
 
 router = APIRouter(tags=["ranking"])
+
+TOPS_VALIDOS = (3, 5, 10, 15)
 
 GESTAO_ROLES = (PapelUsuario.admin_escola, PapelUsuario.coordenacao)
 
@@ -68,9 +75,7 @@ def _contar_nao_entregas(session: SessionDep, escola_id: int) -> dict[int, int]:
     return dict(linhas)
 
 
-@router.get("/ranking", response_model=list[RankingItem])
-def calcular_ranking(session: SessionDep, usuario_atual: CurrentUserDep):
-    escola_id = usuario_atual.escola_id
+def _montar_ranking(session: SessionDep, escola_id: int) -> list[RankingItem]:
     alunos = session.exec(select(Aluno).where(Aluno.escola_id == escola_id)).all()
 
     infracao_por_aluno = _somar_peso_por_tipo(session, escola_id, TipoRegistro.infracao)
@@ -110,3 +115,54 @@ def calcular_ranking(session: SessionDep, usuario_atual: CurrentUserDep):
         )
 
     return resultado
+
+
+def _ordenar_com_posicao_compartilhada(itens: list[RankingItem]) -> list[tuple[RankingItem, int]]:
+    """Pontuação igual = mesma posição, próxima pula (1º, 1º, 3º) — mesma regra do frontend."""
+    ordenada = sorted(itens, key=lambda i: i.pontuacao, reverse=True)
+    resultado: list[tuple[RankingItem, int]] = []
+    posicao_atual = 0
+    pontuacao_anterior: float | None = None
+    for idx, item in enumerate(ordenada):
+        if pontuacao_anterior is None or item.pontuacao != pontuacao_anterior:
+            posicao_atual = idx + 1
+            pontuacao_anterior = item.pontuacao
+        resultado.append((item, posicao_atual))
+    return resultado
+
+
+@router.get("/ranking", response_model=list[RankingItem])
+def calcular_ranking(session: SessionDep, usuario_atual: CurrentUserDep):
+    return _montar_ranking(session, usuario_atual.escola_id)
+
+
+@router.get("/ranking/relatorio-top-turma")
+def gerar_relatorio_top_turma(
+    turma: str,
+    session: SessionDep,
+    usuario_atual: CurrentUserDep,
+    top: Optional[int] = None,
+):
+    """PDF do Patrimônio Disciplinar de uma turma, pronto pra imprimir/compartilhar.
+    Sem `top`: todos os alunos da turma (padrão). Com `top` (3/5/10/15): só os N
+    primeiros. Mesma fórmula e mesmo critério de posição compartilhada da tela
+    (empate = mesma posição)."""
+    if top is not None and top not in TOPS_VALIDOS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Quantidade inválida. Use um dos valores: {', '.join(str(t) for t in TOPS_VALIDOS)}.",
+        )
+
+    escola = session.get(Escola, usuario_atual.escola_id)
+    itens_turma = [i for i in _montar_ranking(session, usuario_atual.escola_id) if i.turma == turma]
+    posicionados = _ordenar_com_posicao_compartilhada(itens_turma)
+    itens_relatorio = posicionados if top is None else posicionados[:top]
+
+    pdf_bytes = gerar_pdf_ranking_turma(escola, turma, itens_relatorio, top)
+    sufixo = "todos" if top is None else f"top{top}"
+    nome_arquivo = f"patrimonio_disciplinar_turma_{turma}_{sufixo}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+    )

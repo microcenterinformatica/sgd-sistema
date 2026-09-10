@@ -5,9 +5,9 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Award, MinusCircle } from "lucide-react";
+import { Award, Download, MinusCircle } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, baixarArquivo } from "@/lib/api";
 import { ConfiguracaoRanking, Professor, RankingItem, RegistroMeritoTurmaResponse } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { MoedaVeracom } from "@/components/MoedaVeracom";
@@ -266,6 +266,8 @@ function RankingContent() {
   const [professores, setProfessores] = useState<Professor[]>([]);
   const [dialogoMeritoTurma, setDialogoMeritoTurma] = useState<"dar" | "remover" | null>(null);
   const [valorVeracomBase, setValorVeracomBase] = useState(0.2);
+  const [topSelecionado, setTopSelecionado] = useState("todas");
+  const [gerandoTop, setGerandoTop] = useState(false);
 
   function carregarRanking() {
     api
@@ -284,6 +286,23 @@ function RankingContent() {
   }, []);
 
   const turmaSelecionada = visao === "turma" && turmaFiltro !== "todas" && turmaFiltro !== "sem-turma" ? turmaFiltro : null;
+
+  async function baixarListaTop() {
+    if (!turmaSelecionada) return;
+    setGerandoTop(true);
+    const sufixo = topSelecionado === "todas" ? "todos" : `top${topSelecionado}`;
+    const paramTop = topSelecionado === "todas" ? "" : `&top=${topSelecionado}`;
+    try {
+      await baixarArquivo(
+        `/ranking/relatorio-top-turma?turma=${encodeURIComponent(turmaSelecionada)}${paramTop}`,
+        `patrimonio_disciplinar_turma_${turmaSelecionada}_${sufixo}.pdf`
+      );
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao gerar lista");
+    } finally {
+      setGerandoTop(false);
+    }
+  }
 
   const turmasDisponiveis = useMemo(() => {
     if (!itens) return [];
@@ -390,6 +409,27 @@ function RankingContent() {
                 </Button>
               </div>
             )}
+
+            {turmaSelecionada && (
+              <div className="flex flex-wrap justify-center items-center gap-2">
+                <Select value={topSelecionado} onValueChange={(v) => v && setTopSelecionado(v)}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue>{(v: string) => (v === "todas" ? "Todos os alunos" : `Top ${v}`)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todos os alunos</SelectItem>
+                    <SelectItem value="15">Top 15</SelectItem>
+                    <SelectItem value="10">Top 10</SelectItem>
+                    <SelectItem value="5">Top 5</SelectItem>
+                    <SelectItem value="3">Top 3</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" disabled={gerandoTop} onClick={baixarListaTop}>
+                  <Download />
+                  {gerandoTop ? "Gerando..." : "Gerar lista em PDF"}
+                </Button>
+              </div>
+            )}
           </div>
         }
       />
@@ -430,27 +470,33 @@ function RankingContent() {
       {visao === "turma" && (
         <>
 
-          {gruposExibidos?.map((grupo) => (
-            <div key={grupo.turma} className="space-y-2">
-              <div className="flex items-center justify-between px-4">
-                <h2 className="font-bold text-foreground">
-                  {grupo.turma === SEM_TURMA ? SEM_TURMA : `Turma ${grupo.turma}`}
-                </h2>
-                <TotalVeracom
-                  totalVeracom={grupo.totalVeracom}
-                  numAlunos={grupo.numAlunos}
-                  valorBase={valorVeracomBase}
-                />
+          {gruposExibidos?.map((grupo) => {
+            const itensExibidos =
+              grupo.turma === turmaSelecionada && topSelecionado !== "todas"
+                ? grupo.itens.slice(0, Number(topSelecionado))
+                : grupo.itens;
+            return (
+              <div key={grupo.turma} className="space-y-2">
+                <div className="flex items-center justify-between px-4">
+                  <h2 className="font-bold text-foreground">
+                    {grupo.turma === SEM_TURMA ? SEM_TURMA : `Turma ${grupo.turma}`}
+                  </h2>
+                  <TotalVeracom
+                    totalVeracom={grupo.totalVeracom}
+                    numAlunos={grupo.numAlunos}
+                    valorBase={valorVeracomBase}
+                  />
+                </div>
+                <Card className="py-0">
+                  <CardContent className="divide-y px-0">
+                    {itensExibidos.map(({ item, posicao }) => (
+                      <LinhaRanking key={item.aluno_id} item={item} posicao={posicao} />
+                    ))}
+                  </CardContent>
+                </Card>
               </div>
-              <Card className="py-0">
-                <CardContent className="divide-y px-0">
-                  {grupo.itens.map(({ item, posicao }) => (
-                    <LinhaRanking key={item.aluno_id} item={item} posicao={posicao} />
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-          ))}
+            );
+          })}
         </>
       )}
     </div>
