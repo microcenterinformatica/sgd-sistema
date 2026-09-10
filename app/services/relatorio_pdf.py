@@ -137,7 +137,7 @@ def gerar_pdf_historico_aluno(
         )
         punicoes_ordenadas = sorted(punicoes, key=lambda p: p.pontuacao_minima)
         partes = [f"{p.pontuacao_minima}+ {p.descricao}" for p in punicoes_ordenadas]
-        texto_fases = "<b>Fases de conduta disciplinar da escola:</b> " + " * ".join(partes)
+        texto_fases = "<b>Fases de Condutas Recomendadas pelo Sistema:</b> " + " * ".join(partes)
 
         elementos.append(Spacer(1, 0.8 * cm))
         elementos.append(Paragraph(texto_fases, rodape_texto))
