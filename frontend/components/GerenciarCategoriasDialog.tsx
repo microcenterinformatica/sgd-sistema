@@ -1,20 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
-import RequireAuth from "@/components/RequireAuth";
+import { Plus, Pencil, Trash2, Tags } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { CategoriaAtividade } from "@/lib/types";
-import { useAtribuicoes } from "@/lib/useAtribuicoes";
-import { useCategoriasAtividade } from "@/lib/useCategoriasAtividade";
-import { escolherDisciplinaInicial, salvarUltimaDisciplina } from "@/lib/turmaPreferida";
-import { PageHeader } from "@/components/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 function NovaCategoriaForm({ disciplinaId, onCriada }: { disciplinaId: number; onCriada: () => void }) {
   const [nome, setNome] = useState("");
@@ -95,7 +96,7 @@ function CategoriaItem({ categoria, onAlterada }: { categoria: CategoriaAtividad
 
   if (editando) {
     return (
-      <li className="flex flex-wrap items-end gap-2 px-(--card-spacing) py-2">
+      <li className="flex flex-wrap items-end gap-2 py-2">
         <Input className="flex-1 min-w-40" autoFocus value={nome} onChange={(e) => setNome(e.target.value)} />
         <Input type="number" step="0.5" min="0.5" className="w-20" value={peso} onChange={(e) => setPeso(e.target.value)} />
         <Button size="sm" disabled={salvando || !nome.trim()} onClick={salvar}>
@@ -109,7 +110,7 @@ function CategoriaItem({ categoria, onAlterada }: { categoria: CategoriaAtividad
   }
 
   return (
-    <li className="flex items-center justify-between px-(--card-spacing) py-2">
+    <li className="flex items-center justify-between py-2">
       <span className="text-sm text-foreground">
         {categoria.nome} <span className="text-muted-foreground">(peso {categoria.peso})</span>
       </span>
@@ -125,87 +126,43 @@ function CategoriaItem({ categoria, onAlterada }: { categoria: CategoriaAtividad
   );
 }
 
-function CategoriasContent() {
-  const { dados } = useAtribuicoes();
-  const [disciplinaId, setDisciplinaId] = useState<number | "">("");
-
-  const disciplinas = dados
-    ? Array.from(new Map(dados.combinacoes.map((c) => [c.disciplina_id, c])).values())
-    : [];
-
-  useEffect(() => {
-    if (disciplinaId === "" && disciplinas.length > 0) {
-      setDisciplinaId(escolherDisciplinaInicial(disciplinas.map((d) => d.disciplina_id)));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [disciplinas.length]);
-
-  function selecionarDisciplina(id: number) {
-    setDisciplinaId(id);
-    salvarUltimaDisciplina(id);
-  }
-
-  const { categorias, recarregarCategorias } = useCategoriasAtividade(disciplinaId);
-  const disciplinaAtual = disciplinas.find((d) => d.disciplina_id === disciplinaId);
-
+export function GerenciarCategoriasDialog({
+  disciplinaId,
+  disciplinaNome,
+  categorias,
+  onAlterada,
+}: {
+  disciplinaId: number;
+  disciplinaNome: string;
+  categorias: CategoriaAtividade[];
+  onAlterada: () => void;
+}) {
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-4">
-      <PageHeader
-        title="Categorias de Atividade"
-        subtitle="Organize suas atividades por categoria (ex: Prova, Tarefa, Trabalho) e defina o peso de cada uma no cálculo da nota final."
-      />
+    <Dialog>
+      <DialogTrigger render={<Button type="button" />}>
+        <Tags />
+        Gerenciar categorias
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Categorias — {disciplinaNome}</DialogTitle>
+          <DialogDescription>
+            Organize suas atividades por categoria (ex: Prova, Tarefa, Trabalho) e defina o peso de cada uma no cálculo da nota final.
+          </DialogDescription>
+        </DialogHeader>
 
-      {disciplinas.length > 1 && (
-        <div className="space-y-1 w-64">
-          <Label>Disciplina</Label>
-          <Select value={disciplinaId ? String(disciplinaId) : ""} onValueChange={(v) => v && selecionarDisciplina(Number(v))}>
-            <SelectTrigger className="w-full">
-              <SelectValue>
-                {(v: string) => disciplinas.find((d) => String(d.disciplina_id) === v)?.disciplina_nome ?? "Selecione..."}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {disciplinas.map((d) => (
-                <SelectItem key={d.disciplina_id} value={String(d.disciplina_id)}>
-                  {d.disciplina_nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+        <NovaCategoriaForm disciplinaId={disciplinaId} onCriada={onAlterada} />
 
-      {disciplinaId && disciplinaAtual && (
-        <Card>
-          <CardHeader className="border-b pb-3">
-            <CardTitle>{disciplinaAtual.disciplina_nome}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <NovaCategoriaForm disciplinaId={disciplinaId} onCriada={recarregarCategorias} />
-            {categorias.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">Nenhuma categoria cadastrada ainda.</p>
-            ) : (
-              <ul className="divide-y">
-                {categorias.map((c) => (
-                  <CategoriaItem key={c.id} categoria={c} onAlterada={recarregarCategorias} />
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {disciplinas.length === 0 && (
-        <p className="text-sm text-muted-foreground">Você ainda não tem nenhuma disciplina atribuída. Fale com a coordenação.</p>
-      )}
-    </div>
-  );
-}
-
-export default function CategoriasPage() {
-  return (
-    <RequireAuth>
-      <CategoriasContent />
-    </RequireAuth>
+        {categorias.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2">Nenhuma categoria cadastrada ainda.</p>
+        ) : (
+          <ul className="divide-y max-h-64 overflow-y-auto">
+            {categorias.map((c) => (
+              <CategoriaItem key={c.id} categoria={c} onAlterada={onAlterada} />
+            ))}
+          </ul>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

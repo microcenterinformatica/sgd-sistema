@@ -18,7 +18,7 @@ export function CategoriaAtividadeField({
 }) {
   return (
     <div className={`${colSpanClassName} space-y-1`}>
-      <Label title="Agrupa atividades/provas para o cálculo do boletim. O peso é o cadastrado na categoria (tela Categorias) e vale para todas as turmas dessa disciplina.">
+      <Label title="Agrupa atividades/provas para o cálculo do boletim. O peso é o cadastrado na categoria (botão Gerenciar categorias) e vale para todas as turmas dessa disciplina.">
         Categoria
       </Label>
       <Select value={categoriaId ? String(categoriaId) : ""} onValueChange={(v) => v && onSelecionar(Number(v))}>

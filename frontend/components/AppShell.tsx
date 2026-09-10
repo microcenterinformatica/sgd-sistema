@@ -19,7 +19,6 @@ import {
   Search,
   BookMarked,
   Settings2,
-  Tags,
   Layers,
   CalendarRange,
 } from "lucide-react";
@@ -60,7 +59,6 @@ const ITENS_GESTAO = [
 
 const ITENS_NOTAS = [
   { href: "/notas/atividades", label: "Registro de Atividades", icon: ListChecks },
-  { href: "/notas/categorias", label: "Categorias", icon: Tags },
   { href: "/notas/frequencia", label: "Frequência", icon: CalendarCheck },
   { href: "/notas/consultar-aluno", label: "Consultas", icon: Search },
 ];

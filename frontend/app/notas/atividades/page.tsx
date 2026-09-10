@@ -25,6 +25,7 @@ import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { useCategoriasAtividade } from "@/lib/useCategoriasAtividade";
 import { PageHeader } from "@/components/PageHeader";
 import { CategoriaAtividadeField } from "@/components/CategoriaAtividadeField";
+import { GerenciarCategoriasDialog } from "@/components/GerenciarCategoriasDialog";
 import { AtividadesResumoCard } from "@/components/AtividadesResumoCard";
 import { PendenciasAtividadesCard } from "@/components/PendenciasAtividadesCard";
 import { BoletimTurmaCard } from "@/components/BoletimTurmaCard";
@@ -45,12 +46,14 @@ function NovaAtividadeForm({
   disciplinaNome,
   categorias,
   onCriada,
+  acaoSecundaria,
 }: {
   turma: string;
   disciplinaId: number;
   disciplinaNome: string;
   categorias: CategoriaAtividade[];
   onCriada: () => void;
+  acaoSecundaria?: React.ReactNode;
 }) {
   const [aberto, setAberto] = useState(false);
   const [titulo, setTitulo] = useState("");
@@ -87,10 +90,13 @@ function NovaAtividadeForm({
 
   if (!aberto) {
     return (
-      <Button onClick={() => setAberto(true)}>
-        <Plus />
-        Nova atividade
-      </Button>
+      <div className="flex items-center justify-between gap-2">
+        <Button onClick={() => setAberto(true)}>
+          <Plus />
+          Nova atividade
+        </Button>
+        {acaoSecundaria}
+      </div>
     );
   }
 
@@ -178,7 +184,7 @@ function AtividadesContent() {
   const { turmas, disciplinasDaTurma } = useAtribuicoes();
   const [turma, setTurma] = useState("");
   const [disciplinaId, setDisciplinaId] = useState<number | "">("");
-  const { categorias } = useCategoriasAtividade(disciplinaId);
+  const { categorias, recarregarCategorias } = useCategoriasAtividade(disciplinaId);
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState<number | "todas">("todas");
@@ -338,6 +344,14 @@ function AtividadesContent() {
             disciplinaNome={disciplinaAtual.disciplina_nome}
             categorias={categorias}
             onCriada={carregar}
+            acaoSecundaria={
+              <GerenciarCategoriasDialog
+                disciplinaId={disciplinaId}
+                disciplinaNome={disciplinaAtual.disciplina_nome}
+                categorias={categorias}
+                onAlterada={recarregarCategorias}
+              />
+            }
           />
 
           {atividades === null ? (
