@@ -344,7 +344,6 @@ function RankingContent() {
       <PageHeader
         centered
         title="Patrimônio Disciplinar"
-        subtitle="Veracom = mérito − ocorrências de indisciplina − (peso × faltas não justificadas) − (peso × atividades não entregues)."
         action={
           <div className="flex flex-col items-center gap-2">
             <div className="flex flex-wrap justify-center items-center gap-2">
