@@ -289,6 +289,10 @@ export interface ConfiguracaoPeriodo {
   trimestre3_fim: string | null;
 }
 
+export interface Escola {
+  nome: string;
+}
+
 export interface ConfiguracaoRanking {
   peso_falta: number;
   peso_nao_entrega: number;

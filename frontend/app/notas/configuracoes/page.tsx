@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
-import { ConfiguracaoPeriodo, ConfiguracaoRanking, ConfiguracaoRecuperacao } from "@/lib/types";
+import { ConfiguracaoPeriodo, ConfiguracaoRanking, ConfiguracaoRecuperacao, Escola } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,60 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const TRIMESTRES = [1, 2, 3] as const;
+
+function EscolaCard() {
+  const [nome, setNome] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    api
+      .get<Escola>("/escola")
+      .then((e) => setNome(e.nome))
+      .catch((err) => toast.error(err instanceof ApiError ? err.message : "Erro ao carregar escola"))
+      .finally(() => setCarregando(false));
+  }, []);
+
+  async function salvar() {
+    if (!nome.trim()) {
+      toast.error("Nome da escola não pode ficar em branco.");
+      return;
+    }
+    setSalvando(true);
+    try {
+      await api.put("/escola", { nome: nome.trim() });
+      toast.success("Nome da escola salvo com sucesso.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao salvar");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="border-b pb-3">
+        <CardTitle>Escola</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-1 max-w-md">
+          <Label>Nome da escola</Label>
+          {carregando ? (
+            <p className="text-sm text-muted-foreground">Carregando...</p>
+          ) : (
+            <Input value={nome} onChange={(e) => setNome(e.target.value)} />
+          )}
+          <p className="text-xs text-muted-foreground">
+            Aparece no cabeçalho dos relatórios em PDF (Relatório Disciplinar e Patrimônio Disciplinar).
+          </p>
+        </div>
+        <Button onClick={salvar} disabled={salvando || carregando} variant="success">
+          {salvando ? "Salvando..." : "Salvar"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
 
 function ConfiguracaoRankingCard() {
   const [pesoFalta, setPesoFalta] = useState("1");
@@ -258,6 +312,10 @@ function ConfiguracoesContent() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-4">
+      <PageHeader title="Configurações" />
+
+      <EscolaCard />
+
       <PageHeader
         title="Configuração dos trimestres"
         subtitle="Defina as datas de início e fim de cada trimestre do ano letivo. Essas datas são usadas para calcular o boletim anual dos alunos."
