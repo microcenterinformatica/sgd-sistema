@@ -71,6 +71,7 @@ function ConfiguracaoRankingCard() {
   const [pesoFalta, setPesoFalta] = useState("1");
   const [pesoNaoEntrega, setPesoNaoEntrega] = useState("0");
   const [valorVeracomBase, setValorVeracomBase] = useState("0.2");
+  const [nomeMoeda, setNomeMoeda] = useState("Veracom");
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
@@ -81,18 +82,24 @@ function ConfiguracaoRankingCard() {
         setPesoFalta(String(c.peso_falta));
         setPesoNaoEntrega(String(c.peso_nao_entrega));
         setValorVeracomBase(String(c.valor_veracom_base));
+        setNomeMoeda(c.nome_moeda);
       })
       .catch((err) => toast.error(err instanceof ApiError ? err.message : "Erro ao carregar configuração"))
       .finally(() => setCarregando(false));
   }, []);
 
   async function salvar() {
+    if (!nomeMoeda.trim()) {
+      toast.error("Nome da moeda não pode ficar em branco.");
+      return;
+    }
     setSalvando(true);
     try {
       await api.put("/configuracao-ranking", {
         peso_falta: Number(pesoFalta),
         peso_nao_entrega: Number(pesoNaoEntrega),
         valor_veracom_base: Number(valorVeracomBase),
+        nome_moeda: nomeMoeda.trim(),
       });
       toast.success("Configuração salva com sucesso.");
     } catch (err) {
@@ -144,7 +151,19 @@ function ConfiguracaoRankingCard() {
           </p>
         </div>
         <div className="space-y-1 max-w-xs">
-          <Label>Valor do Veracom na base (R$)</Label>
+          <Label>Nome da moeda</Label>
+          {carregando ? (
+            <p className="text-sm text-muted-foreground">Carregando...</p>
+          ) : (
+            <Input value={nomeMoeda} onChange={(e) => setNomeMoeda(e.target.value)} />
+          )}
+          <p className="text-xs text-muted-foreground">
+            Nome usado em toda a tela de Patrimônio Disciplinar e nos relatórios em PDF (ex: Veracom,
+            Estrelas, Pontos...). A imagem da moeda não muda.
+          </p>
+        </div>
+        <div className="space-y-1 max-w-xs">
+          <Label>Valor do {nomeMoeda || "Veracom"} na base (R$)</Label>
           {carregando ? (
             <p className="text-sm text-muted-foreground">Carregando...</p>
           ) : (
@@ -157,9 +176,9 @@ function ConfiguracaoRankingCard() {
             />
           )}
           <p className="text-xs text-muted-foreground">
-            Quanto vale 1 Veracom (em reais) quando o total de Veracom da turma está exatamente na
-            base (número de alunos × 100). Se o total da turma cair abaixo da base a cotação cai; se
-            subir acima, a cotação sobe.
+            Quanto vale 1 {nomeMoeda || "Veracom"} (em reais) quando o total da turma está exatamente
+            na base (número de alunos × 100). Se o total da turma cair abaixo da base a cotação cai;
+            se subir acima, a cotação sobe.
           </p>
         </div>
         <Button onClick={salvar} disabled={salvando || carregando} variant="success">

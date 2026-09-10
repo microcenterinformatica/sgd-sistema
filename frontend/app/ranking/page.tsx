@@ -35,9 +35,7 @@ const MEDALHAS = ["🥇", "🥈", "🥉"];
 const SEM_TURMA = "Sem turma";
 
 const meritoTurmaSchema = z.object({
-  pontos_bonus: z
-    .number({ message: "Informe a quantidade de Veracom" })
-    .positive("Informe um valor positivo de Veracom"),
+  pontos_bonus: z.number({ message: "Informe a quantidade" }).positive("Informe um valor positivo"),
   professor_id: z.string().optional(),
   observacao: z.string().optional(),
 });
@@ -64,8 +62,9 @@ const MERITO_TURMA_TEXTOS = {
   dar: {
     endpoint: "/registros/merito-turma",
     titulo: (turma: string) => `Mérito para a turma ${turma}`,
-    descricao: "Os Veracom serão lançados individualmente para todos os alunos matriculados nesta turma.",
-    placeholderPontos: "Veracom de bônus",
+    descricao: (nomeMoeda: string) =>
+      `Os ${nomeMoeda} serão lançados individualmente para todos os alunos matriculados nesta turma.`,
+    placeholderPontos: (nomeMoeda: string) => `${nomeMoeda} de bônus`,
     placeholderMotivo: "Motivo do mérito",
     botao: "Registrar mérito para a turma",
     botaoCarregando: "Registrando...",
@@ -76,8 +75,9 @@ const MERITO_TURMA_TEXTOS = {
   remover: {
     endpoint: "/registros/remover-merito-turma",
     titulo: (turma: string) => `Remover mérito da turma ${turma}`,
-    descricao: "Os Veracom serão descontados do mérito de todos os alunos matriculados nesta turma, sem afetar a pontuação disciplinar individual.",
-    placeholderPontos: "Veracom a remover",
+    descricao: (nomeMoeda: string) =>
+      `Os ${nomeMoeda} serão descontados do mérito de todos os alunos matriculados nesta turma, sem afetar a pontuação disciplinar individual.`,
+    placeholderPontos: (nomeMoeda: string) => `${nomeMoeda} a remover`,
     placeholderMotivo: "Motivo da remoção",
     botao: "Remover mérito da turma",
     botaoCarregando: "Removendo...",
@@ -94,6 +94,7 @@ function MeritoTurmaDialog({
   onOpenChange,
   professores,
   onRegistrado,
+  nomeMoeda,
 }: {
   modo: "dar" | "remover";
   turma: string;
@@ -101,6 +102,7 @@ function MeritoTurmaDialog({
   onOpenChange: (open: boolean) => void;
   professores: Professor[];
   onRegistrado: () => void;
+  nomeMoeda: string;
 }) {
   const textos = MERITO_TURMA_TEXTOS[modo];
   const { control, register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<MeritoTurmaForm>({
@@ -131,14 +133,14 @@ function MeritoTurmaDialog({
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <DialogHeader>
             <DialogTitle>{textos.titulo(turma)}</DialogTitle>
-            <DialogDescription>{textos.descricao}</DialogDescription>
+            <DialogDescription>{textos.descricao(nomeMoeda)}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-1">
             <Input
               type="number"
               min={1}
-              placeholder={textos.placeholderPontos}
+              placeholder={textos.placeholderPontos(nomeMoeda)}
               aria-invalid={!!errors.pontos_bonus}
               {...register("pontos_bonus", { valueAsNumber: true })}
             />
@@ -195,10 +197,12 @@ function TotalVeracom({
   totalVeracom,
   numAlunos,
   valorBase,
+  nomeMoeda,
 }: {
   totalVeracom: number;
   numAlunos: number;
   valorBase: number;
+  nomeMoeda: string;
 }) {
   const cotacao = calcularCotacao(totalVeracom, numAlunos, valorBase);
   return (
@@ -206,10 +210,10 @@ function TotalVeracom({
       <span className="text-xs text-muted-foreground">Total</span>
       <span className="flex items-center gap-1.5 text-amber-600 font-bold">
         <MoedaVeracom size="sm" />
-        {totalVeracom} Veracom
+        {totalVeracom} {nomeMoeda}
       </span>
       {cotacao !== null && (
-        <span className="text-xs text-muted-foreground">1 Veracom = {formatarCotacao(cotacao)}</span>
+        <span className="text-xs text-muted-foreground">1 {nomeMoeda} = {formatarCotacao(cotacao)}</span>
       )}
     </div>
   );
@@ -240,7 +244,7 @@ function ordenarComPosicaoCompartilhada(lista: RankingItem[]): ItemComPosicao[] 
   return resultado;
 }
 
-function LinhaRanking({ item, posicao }: { item: RankingItem; posicao: number }) {
+function LinhaRanking({ item, posicao, nomeMoeda }: { item: RankingItem; posicao: number; nomeMoeda: string }) {
   return (
     <div className="flex items-center justify-between p-4">
       <div className="flex items-center gap-3">
@@ -252,7 +256,7 @@ function LinhaRanking({ item, posicao }: { item: RankingItem; posicao: number })
       </div>
       <span className="flex items-center gap-1.5 text-amber-600 font-bold">
         <MoedaVeracom size="sm" />
-        {item.pontuacao} Veracom
+        {item.pontuacao} {nomeMoeda}
       </span>
     </div>
   );
@@ -266,6 +270,7 @@ function RankingContent() {
   const [professores, setProfessores] = useState<Professor[]>([]);
   const [dialogoMeritoTurma, setDialogoMeritoTurma] = useState<"dar" | "remover" | null>(null);
   const [valorVeracomBase, setValorVeracomBase] = useState(0.2);
+  const [nomeMoeda, setNomeMoeda] = useState("Veracom");
   const [topSelecionado, setTopSelecionado] = useState("todas");
   const [gerandoTop, setGerandoTop] = useState(false);
 
@@ -281,7 +286,10 @@ function RankingContent() {
     api.get<Professor[]>("/professores").then(setProfessores).catch(() => {});
     api
       .get<ConfiguracaoRanking>("/configuracao-ranking")
-      .then((c) => setValorVeracomBase(c.valor_veracom_base))
+      .then((c) => {
+        setValorVeracomBase(c.valor_veracom_base);
+        setNomeMoeda(c.nome_moeda);
+      })
       .catch(() => {});
   }, []);
 
@@ -442,6 +450,7 @@ function RankingContent() {
           onOpenChange={(open) => setDialogoMeritoTurma(open ? dialogoMeritoTurma : null)}
           professores={professores}
           onRegistrado={carregarRanking}
+          nomeMoeda={nomeMoeda}
         />
       )}
 
@@ -454,13 +463,18 @@ function RankingContent() {
           {totalVeracom !== null && (
             <div className="flex items-center justify-between px-4">
               <span className="font-bold text-foreground">Geral</span>
-              <TotalVeracom totalVeracom={totalVeracom} numAlunos={geral.length} valorBase={valorVeracomBase} />
+              <TotalVeracom
+                totalVeracom={totalVeracom}
+                numAlunos={geral.length}
+                valorBase={valorVeracomBase}
+                nomeMoeda={nomeMoeda}
+              />
             </div>
           )}
           <Card className="py-0">
             <CardContent className="divide-y px-0">
               {geral.map(({ item, posicao }) => (
-                <LinhaRanking key={item.aluno_id} item={item} posicao={posicao} />
+                <LinhaRanking key={item.aluno_id} item={item} posicao={posicao} nomeMoeda={nomeMoeda} />
               ))}
             </CardContent>
           </Card>
@@ -485,12 +499,13 @@ function RankingContent() {
                     totalVeracom={grupo.totalVeracom}
                     numAlunos={grupo.numAlunos}
                     valorBase={valorVeracomBase}
+                    nomeMoeda={nomeMoeda}
                   />
                 </div>
                 <Card className="py-0">
                   <CardContent className="divide-y px-0">
                     {itensExibidos.map(({ item, posicao }) => (
-                      <LinhaRanking key={item.aluno_id} item={item} posicao={posicao} />
+                      <LinhaRanking key={item.aluno_id} item={item} posicao={posicao} nomeMoeda={nomeMoeda} />
                     ))}
                   </CardContent>
                 </Card>

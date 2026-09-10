@@ -214,7 +214,7 @@ function HistoricoContent() {
   const [registros, setRegistros] = useState<RegistroDisciplinar[]>([]);
   const [faltas, setFaltas] = useState<FaltaRead[]>([]);
   const [naoEntregues, setNaoEntregues] = useState<AtividadeNaoEntregueRead[]>([]);
-  const [configRanking, setConfigRanking] = useState<ConfiguracaoRanking>({ peso_falta: 1, peso_nao_entrega: 0, valor_veracom_base: 0.2 });
+  const [configRanking, setConfigRanking] = useState<ConfiguracaoRanking>({ peso_falta: 1, peso_nao_entrega: 0, valor_veracom_base: 0.2, nome_moeda: "Veracom" });
   const [regras, setRegras] = useState<RegraInfracao[]>([]);
   const [professores, setProfessores] = useState<Professor[]>([]);
   const [turmaFiltro, setTurmaFiltro] = useState<string>("todas");

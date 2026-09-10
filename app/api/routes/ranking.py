@@ -39,10 +39,15 @@ def obter_configuracao_ranking(session: SessionDep, usuario_atual: CurrentUserDe
 def atualizar_configuracao_ranking(
     dados: ConfiguracaoRankingUpdate, session: SessionDep, usuario_atual: CurrentUserDep
 ):
+    if dados.nome_moeda is not None and not dados.nome_moeda.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nome da moeda não pode ficar em branco.")
+
     config = session.get(ConfiguracaoRanking, usuario_atual.escola_id)
     if config is None:
         config = ConfiguracaoRanking(escola_id=usuario_atual.escola_id)
     for campo, valor in dados.model_dump(exclude_unset=True).items():
+        if campo == "nome_moeda":
+            valor = valor.strip()
         setattr(config, campo, valor)
     session.add(config)
     session.commit()
@@ -154,11 +159,13 @@ def gerar_relatorio_top_turma(
         )
 
     escola = session.get(Escola, usuario_atual.escola_id)
+    config = session.get(ConfiguracaoRanking, usuario_atual.escola_id)
+    nome_moeda = config.nome_moeda if config else "Veracom"
     itens_turma = [i for i in _montar_ranking(session, usuario_atual.escola_id) if i.turma == turma]
     posicionados = _ordenar_com_posicao_compartilhada(itens_turma)
     itens_relatorio = posicionados if top is None else posicionados[:top]
 
-    pdf_bytes = gerar_pdf_ranking_turma(escola, turma, itens_relatorio, top)
+    pdf_bytes = gerar_pdf_ranking_turma(escola, turma, itens_relatorio, top, nome_moeda)
     sufixo = "todos" if top is None else f"top{top}"
     nome_arquivo = f"patrimonio_disciplinar_turma_{turma}_{sufixo}.pdf"
     return Response(

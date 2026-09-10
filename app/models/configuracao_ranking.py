@@ -8,3 +8,4 @@ class ConfiguracaoRanking(SQLModel, table=True):
     peso_falta: float = Field(default=1.0)
     peso_nao_entrega: float = Field(default=0.0)
     valor_veracom_base: float = Field(default=0.2)
+    nome_moeda: str = Field(default="Veracom")

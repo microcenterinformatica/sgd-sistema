@@ -297,6 +297,7 @@ export interface ConfiguracaoRanking {
   peso_falta: number;
   peso_nao_entrega: number;
   valor_veracom_base: number;
+  nome_moeda: string;
 }
 
 export interface ConfiguracaoRecuperacao {

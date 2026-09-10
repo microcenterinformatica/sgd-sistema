@@ -39,6 +39,7 @@ def gerar_pdf_ranking_turma(
     turma: str,
     itens: list[tuple[RankingItem, int]],
     top: Optional[int],
+    nome_moeda: str = "Veracom",
 ) -> bytes:
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -109,7 +110,7 @@ def gerar_pdf_ranking_turma(
     if not itens:
         elementos.append(Paragraph("Nenhum aluno encontrado nessa turma.", estilos["Normal"]))
     else:
-        linhas = [["Pos.", "Aluno", "Veracom"]]
+        linhas = [["Pos.", "Aluno", nome_moeda]]
         for item, posicao in itens:
             linhas.append([f"{posicao}º", item.aluno_nome, f"{item.pontuacao:g}"])
 
