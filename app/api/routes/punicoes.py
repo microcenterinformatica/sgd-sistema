@@ -14,7 +14,7 @@ GESTAO_ROLES = (PapelUsuario.admin_escola, PapelUsuario.coordenacao)
 def _get_punicao_da_escola(session: SessionDep, punicao_id: int, escola_id: int) -> Punicao:
     punicao = session.get(Punicao, punicao_id)
     if punicao is None or punicao.escola_id != escola_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Punição não encontrada")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conduta não encontrada")
     return punicao
 
 

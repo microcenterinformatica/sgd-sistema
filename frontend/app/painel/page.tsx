@@ -137,7 +137,7 @@ function DashboardContent() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="size-5" /> Alertas de punição
+            <AlertTriangle className="size-5" /> Alertas de Condutas
           </CardTitle>
         </CardHeader>
         <CardContent className="px-0 pt-0">
