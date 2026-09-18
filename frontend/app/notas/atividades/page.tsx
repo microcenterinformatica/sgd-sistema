@@ -268,7 +268,15 @@ function AtividadesContent() {
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-4">
       <PageHeader
-        title="Registro de Atividades"
+        title={
+          disciplinaAtual ? (
+            <>
+              Registro de Atividades — <span className="text-red-600">{disciplinaAtual.disciplina_nome}</span>
+            </>
+          ) : (
+            "Registro de Atividades"
+          )
+        }
         subtitle="Registre se o aluno fez ou não fez cada atividade."
         action={
           <div className="flex items-end gap-2">

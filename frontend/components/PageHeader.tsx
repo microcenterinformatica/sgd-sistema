@@ -8,7 +8,7 @@ export function PageHeader({
   centered,
 }: {
   icon?: ReactNode;
-  title: string;
+  title: ReactNode;
   subtitle?: string;
   action?: ReactNode;
   /** Centraliza título, subtítulo e ação em coluna, em vez do layout padrão lado a lado. */
