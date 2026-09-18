@@ -9,6 +9,7 @@ import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError } from "@/lib/api";
 import { AlunoResumo, Atividade, LancamentoRead } from "@/lib/types";
 import { useCategoriasAtividade } from "@/lib/useCategoriasAtividade";
+import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { PageHeader } from "@/components/PageHeader";
 import { CategoriaAtividadeField } from "@/components/CategoriaAtividadeField";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +38,7 @@ function AtividadeDetalheContent() {
   const [dataEntregaEdit, setDataEntregaEdit] = useState("");
   const [excluindo, setExcluindo] = useState(false);
   const { categorias } = useCategoriasAtividade(atividade?.disciplina_id ?? "");
+  const { disciplinasDaTurma } = useAtribuicoes();
 
   useEffect(() => {
     async function carregar() {
@@ -145,6 +147,9 @@ function AtividadeDetalheContent() {
   if (!atividade) return <p className="p-6 text-muted-foreground">Carregando...</p>;
 
   const totalFeitas = alunos.filter((a) => fez[a.id]).length;
+  const disciplinaNome = disciplinasDaTurma(atividade.turma ?? "").find(
+    (d) => d.disciplina_id === atividade.disciplina_id
+  )?.disciplina_nome;
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-4">
@@ -155,7 +160,15 @@ function AtividadeDetalheContent() {
 
       {!editando ? (
         <PageHeader
-          title={atividade.titulo}
+          title={
+            disciplinaNome ? (
+              <>
+                {atividade.titulo} <span className="text-red-600">— {disciplinaNome}</span>
+              </>
+            ) : (
+              atividade.titulo
+            )
+          }
           subtitle={`Turma ${atividade.turma} · ${atividade.categoria_nome} · peso ${atividade.categoria_peso} · ${alunos.length} aluno(s)${
             atividade.data_entrega ? ` · entrega até ${atividade.data_entrega.split("-").reverse().join("/")}` : ""
           }`}

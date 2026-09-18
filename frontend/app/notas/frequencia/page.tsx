@@ -186,7 +186,15 @@ function FrequenciaContent() {
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-4">
       <PageHeader
-        title="Controle de Frequência"
+        title={
+          disciplinaAtual ? (
+            <>
+              Controle de Frequência — <span className="text-red-600">{disciplinaAtual.disciplina_nome}</span>
+            </>
+          ) : (
+            "Controle de Frequência"
+          )
+        }
         subtitle="Faça a chamada, descreva o conteúdo dado no dia e edite a frequência de qualquer data quando precisar."
       />
 
