@@ -11,11 +11,13 @@ import { calcularStatus } from "@/lib/conduta";
 import {
   Aluno,
   AlunoResumo,
+  AnoLetivo,
   AtividadePendenciaRead,
   AtividadeResumoItem,
   BoletimAluno,
   BoletimAnualAluno,
   ConteudoAulaRead,
+  Escola,
   FaltaRead,
   FaltaResumoItem,
   LancamentoAlunoRead,
@@ -205,38 +207,124 @@ function AjusteNotaDialog({
   );
 }
 
-function gerarPdfBoletim(boletim: BoletimAnualAluno, turma: string) {
-  const doc = new jsPDF();
-  doc.setFontSize(16);
-  doc.text("Boletim Escolar", 14, 18);
-  doc.setFontSize(11);
-  doc.text(`Aluno: ${boletim.aluno_nome}`, 14, 28);
-  doc.text(`Turma: ${turma}`, 14, 35);
+interface CabecalhoBoletim {
+  escolaNome: string;
+  anoLetivo: number | null;
+  matricula: string;
+  turma: string;
+}
 
-  let y = 42;
+function desenharCabecalhoBoletim(doc: jsPDF, boletim: BoletimAnualAluno, info: CabecalhoBoletim): number {
+  doc.setFontSize(15);
+  doc.setTextColor(15, 23, 42);
+  doc.text(info.escolaNome || "Boletim Escolar", 14, 17);
+  doc.setFontSize(11);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Boletim Escolar${info.anoLetivo ? ` — Ano letivo ${info.anoLetivo}` : ""}`, 14, 24);
+
+  doc.setFontSize(10.5);
+  doc.setTextColor(30, 41, 59);
+  const linha =
+    `Aluno: ${boletim.aluno_nome}` +
+    (info.matricula ? `   |   Matrícula: ${info.matricula}` : "") +
+    `   |   Turma: ${info.turma}`;
+  doc.text(linha, 14, 33);
+  doc.setDrawColor(203, 213, 225);
+  doc.line(14, 37, 196, 37);
+  return 44;
+}
+
+const ESTILO_CABECALHO_TABELA = {
+  fillColor: [30, 41, 59] as [number, number, number],
+  textColor: 255,
+  fontStyle: "bold" as const,
+  halign: "center" as const,
+};
+
+function gerarPdfBoletimGrade(boletim: BoletimAnualAluno, info: CabecalhoBoletim) {
+  const doc = new jsPDF();
+  const startY = desenharCabecalhoBoletim(doc, boletim, info);
+
+  autoTable(doc, {
+    startY,
+    head: [
+      [
+        { content: "Disciplina", rowSpan: 2, styles: { valign: "middle", halign: "left" } },
+        { content: "1º Trimestre", colSpan: 2 },
+        { content: "2º Trimestre", colSpan: 2 },
+        { content: "3º Trimestre", colSpan: 2 },
+        { content: "Média Final", rowSpan: 2, styles: { valign: "middle" } },
+        { content: "Situação", rowSpan: 2, styles: { valign: "middle" } },
+      ],
+      ["Nota", "Faltas", "Nota", "Faltas", "Nota", "Faltas"],
+    ],
+    body: boletim.disciplinas.map((disc) => [
+      disc.disciplina_nome,
+      ...disc.trimestres.flatMap((t) => [String(t.nota_final), String(t.total_faltas)]),
+      String(disc.media_final),
+      disc.aprovado ? "Aprovado" : "Reprovado",
+    ]),
+    theme: "grid",
+    headStyles: ESTILO_CABECALHO_TABELA,
+    styles: { fontSize: 9, halign: "center", cellPadding: 4, lineColor: [148, 163, 184], lineWidth: 0.3 },
+    columnStyles: { 0: { halign: "left", fontStyle: "bold" } },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    didParseCell: (data) => {
+      if (data.section === "body" && data.column.index === 8) {
+        const aprovado = data.cell.raw === "Aprovado";
+        data.cell.styles.textColor = aprovado ? [4, 120, 87] : [185, 28, 28];
+        data.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+
+  const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+  doc.setFontSize(8.5);
+  doc.setTextColor(136, 136, 136);
+  doc.text(
+    `Relatório gerado em ${new Date().toLocaleDateString("pt-BR")}. Nota mínima para aprovação: 6,0.`,
+    14,
+    finalY
+  );
+
+  doc.save(`boletim_${boletim.aluno_nome.replace(/\s+/g, "_")}.pdf`);
+}
+
+function gerarPdfBoletimDetalhado(boletim: BoletimAnualAluno, info: CabecalhoBoletim) {
+  const doc = new jsPDF();
+  let y = desenharCabecalhoBoletim(doc, boletim, info);
+
   for (const disc of boletim.disciplinas) {
+    if (y > 250) {
+      doc.addPage();
+      y = 20;
+    }
     doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
+    doc.setTextColor(15, 23, 42);
     doc.text(disc.disciplina_nome, 14, y);
     y += 4;
 
     autoTable(doc, {
       startY: y,
-      head: [["Trimestre", "Período", "Nota final", "Máximo", "Faltas"]],
+      head: [["Trimestre", "Período", "Nota final", "Faltas"]],
       body: disc.trimestres.map((t) => [
         `${t.trimestre}º trimestre`,
         `${formatarData(t.data_inicio)} a ${formatarData(t.data_fim)}`,
         String(t.nota_final),
-        String(t.peso_total),
         String(t.total_faltas),
       ]),
+      theme: "grid",
+      headStyles: ESTILO_CABECALHO_TABELA,
+      styles: { fontSize: 9, cellPadding: 4, lineColor: [148, 163, 184], lineWidth: 0.3 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
     });
 
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
     doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
+    doc.setTextColor(51, 65, 85);
     doc.text(`Média final: ${disc.media_final} · Faltas no ano: ${disc.total_faltas}`, 14, y);
-    doc.setTextColor(disc.aprovado ? 5 : 190, disc.aprovado ? 120 : 40, disc.aprovado ? 70 : 40);
+    const [corR, corG, corB] = disc.aprovado ? [4, 120, 87] : [185, 28, 28];
+    doc.setTextColor(corR, corG, corB);
     doc.text(disc.aprovado ? "Aprovado" : "Reprovado", 170, y);
     y += 10;
   }
@@ -454,6 +542,9 @@ function ConsultarAlunoContent() {
   const [boletimTurma, setBoletimTurma] = useState<BoletimAluno[] | null>(null);
   const [boletimAnual, setBoletimAnual] = useState<BoletimAnualAluno | null>(null);
   const [carregandoBoletimAnual, setCarregandoBoletimAnual] = useState(false);
+  const [escolaNome, setEscolaNome] = useState("");
+  const [anoLetivoAtual, setAnoLetivoAtual] = useState<number | null>(null);
+  const [modeloBoletim, setModeloBoletim] = useState<"grade" | "detalhado">("grade");
   const [faltasDetalhe, setFaltasDetalhe] = useState<FaltaRead[] | null>(null);
   const [faltasResumoTurma, setFaltasResumoTurma] = useState<FaltaResumoItem[] | null>(null);
   const [atividadesResumoTurma, setAtividadesResumoTurma] = useState<AtividadeResumoItem[] | null>(null);
@@ -478,7 +569,22 @@ function ConsultarAlunoContent() {
 
   useEffect(() => {
     api.get<Punicao[]>("/punicoes").then(setPunicoes).catch(() => {});
+    api.get<Escola>("/escola").then((e) => setEscolaNome(e.nome)).catch(() => {});
+    api
+      .get<AnoLetivo[]>("/anos-letivos")
+      .then((lista) => {
+        const atual = lista.find((a) => a.situacao === "aberto") ?? lista[0];
+        if (atual) setAnoLetivoAtual(atual.ano);
+      })
+      .catch(() => {});
+    const modeloSalvo = localStorage.getItem("sgd_boletim_modelo");
+    if (modeloSalvo === "grade" || modeloSalvo === "detalhado") setModeloBoletim(modeloSalvo);
   }, []);
+
+  function selecionarModeloBoletim(modelo: "grade" | "detalhado") {
+    setModeloBoletim(modelo);
+    localStorage.setItem("sgd_boletim_modelo", modelo);
+  }
 
   const alunosCompletosPorId = useMemo(
     () => new Map(alunosTurmaCompletos.map((a) => [a.id, a])),
@@ -1074,12 +1180,39 @@ function ConsultarAlunoContent() {
 
       {aba === "periodo" && boletimAnual && (
         <Card>
-          <CardHeader className="flex-row items-center justify-between border-b pb-3">
+          <CardHeader className="flex-row items-center justify-between border-b pb-3 flex-wrap gap-2">
             <CardTitle>Boletim anual — {boletimAnual.aluno_nome}</CardTitle>
-            <Button size="sm" onClick={() => gerarPdfBoletim(boletimAnual, turma)}>
-              <Download />
-              Baixar PDF
-            </Button>
+            <div className="flex items-center gap-2">
+              <Select
+                value={modeloBoletim}
+                onValueChange={(v) => v && selecionarModeloBoletim(v as "grade" | "detalhado")}
+              >
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue>
+                    {(v: string) => (v === "grade" ? "Modelo: Grade por trimestre" : "Modelo: Detalhado por disciplina")}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="grade">Grade por trimestre</SelectItem>
+                  <SelectItem value="detalhado">Detalhado por disciplina</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const matricula = alunos.find((a) => a.id === boletimAnual.aluno_id)?.matricula ?? "";
+                  const info = { escolaNome, anoLetivo: anoLetivoAtual, matricula, turma };
+                  if (modeloBoletim === "detalhado") {
+                    gerarPdfBoletimDetalhado(boletimAnual, info);
+                  } else {
+                    gerarPdfBoletimGrade(boletimAnual, info);
+                  }
+                }}
+              >
+                <Download />
+                Baixar PDF
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {boletimAnual.disciplinas.length === 0 ? (
