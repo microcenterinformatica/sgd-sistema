@@ -244,6 +244,87 @@ function gerarPdfBoletim(boletim: BoletimAnualAluno, turma: string) {
   doc.save(`boletim_${boletim.aluno_nome.replace(/\s+/g, "_")}.pdf`);
 }
 
+function normalizarNome(nome: string): string {
+  return nome
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function prioridadeDisciplina(nome: string): number {
+  const normalizado = normalizarNome(nome);
+  if (normalizado === "portugues") return 0;
+  if (normalizado === "matematica") return 1;
+  return 2;
+}
+
+function periodoTexto(dataInicio: string, dataFim: string): string {
+  if (!dataInicio && !dataFim) return "Histórico completo";
+  if (dataInicio && dataFim) return `${formatarData(dataInicio)} a ${formatarData(dataFim)}`;
+  if (dataInicio) return `A partir de ${formatarData(dataInicio)}`;
+  return `Até ${formatarData(dataFim)}`;
+}
+
+function gerarPdfConteudoUnico(
+  conteudos: ConteudoAulaRead[],
+  turma: string,
+  disciplinaNome: string,
+  dataInicio: string,
+  dataFim: string
+) {
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text("Relatório de Conteúdo Lecionado", 14, 18);
+  doc.setFontSize(11);
+  doc.text(`Turma: ${turma}`, 14, 28);
+  doc.text(`Disciplina: ${disciplinaNome}`, 14, 35);
+  doc.text(`Período: ${periodoTexto(dataInicio, dataFim)}`, 14, 42);
+
+  autoTable(doc, {
+    startY: 48,
+    head: [["Data", "Conteúdo"]],
+    body: conteudos.map((c) => [formatarData(c.data), c.conteudo]),
+    columnStyles: { 0: { cellWidth: 26 } },
+    styles: { valign: "top" },
+  });
+
+  doc.save(`conteudo_turma-${turma}_${disciplinaNome.replace(/\s+/g, "_")}.pdf`);
+}
+
+function gerarPdfConteudoAgrupado(grupos: GrupoConteudo[], dataInicio: string, dataFim: string) {
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text("Relatório de Conteúdo Lecionado", 14, 18);
+  doc.setFontSize(11);
+  doc.text("Todas as turmas e disciplinas", 14, 26);
+  doc.text(`Período: ${periodoTexto(dataInicio, dataFim)}`, 14, 33);
+
+  let y = 42;
+  for (const grupo of grupos) {
+    if (y > 260) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.setFontSize(12);
+    doc.text(`Turma ${grupo.turma} — ${grupo.disciplinaNome}`, 14, y);
+    y += 4;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Data", "Conteúdo"]],
+      body: grupo.itens.map((c) => [formatarData(c.data), c.conteudo]),
+      columnStyles: { 0: { cellWidth: 26 } },
+      styles: { valign: "top" },
+      margin: { left: 14, right: 14 },
+    });
+
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+  }
+
+  doc.save("conteudo_todas_disciplinas.pdf");
+}
+
 function FaltasResumoTurmaCard({ resumo }: { resumo: FaltaResumoItem[] }) {
   const ordenado = [...resumo].sort((a, b) => b.total_faltas - a.total_faltas);
   return (
@@ -386,6 +467,7 @@ function ConsultarAlunoContent() {
   const [incluirProfessorRelatorio, setIncluirProfessorRelatorio] = useState(true);
   const [incluirObservacoesRelatorio, setIncluirObservacoesRelatorio] = useState(true);
   const [gerandoRelatorioPdf, setGerandoRelatorioPdf] = useState(false);
+  const [gerandoConteudoPdf, setGerandoConteudoPdf] = useState(false);
   const [linkWhatsappRelatorio, setLinkWhatsappRelatorio] = useState<string | null>(null);
 
   const registrosDisciplinaresFiltrados = (registrosDisciplinares ?? []).filter(
@@ -631,8 +713,8 @@ function ConsultarAlunoContent() {
     }
   }
 
-  async function consultarConteudoTodas() {
-    if (!dadosAtribuicoes) return;
+  async function buscarConteudoTodasDisciplinas(): Promise<GrupoConteudo[] | null> {
+    if (!dadosAtribuicoes) return null;
     setConteudosAgrupados(null);
     try {
       const vistos = new Set<string>();
@@ -652,32 +734,79 @@ function ConsultarAlunoContent() {
             disciplinaNome: c.disciplina_nome,
             itens: itens
               .filter((item) => (!dataInicio || item.data >= dataInicio) && (!dataFim || item.data <= dataFim))
-              .sort((a, b) => (a.data < b.data ? 1 : -1)),
+              .sort((a, b) => (a.data < b.data ? -1 : 1)),
           };
         })
       );
-      setConteudosAgrupados(
-        grupos
-          .filter((g) => g.itens.length > 0)
-          .sort((a, b) => a.turma.localeCompare(b.turma) || a.disciplinaNome.localeCompare(b.disciplinaNome))
-      );
+      const resultado = grupos
+        .filter((g) => g.itens.length > 0)
+        .sort(
+          (a, b) =>
+            a.turma.localeCompare(b.turma) ||
+            prioridadeDisciplina(a.disciplinaNome) - prioridadeDisciplina(b.disciplinaNome) ||
+            a.disciplinaNome.localeCompare(b.disciplinaNome)
+        );
+      setConteudosAgrupados(resultado);
+      return resultado;
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Erro ao consultar conteúdo");
+      return null;
+    }
+  }
+
+  async function buscarConteudoUnico(): Promise<ConteudoAulaRead[] | null> {
+    if (!disciplinaId) return null;
+    setConteudos(null);
+    try {
+      const lista = await api.get<ConteudoAulaRead[]>(
+        `/faltas/conteudo?turma=${encodeURIComponent(turma)}&disciplina_id=${disciplinaId}`
+      );
+      const filtrada = lista
+        .filter((c) => (!dataInicio || c.data >= dataInicio) && (!dataFim || c.data <= dataFim))
+        .sort((a, b) => (a.data < b.data ? -1 : 1));
+      setConteudos(filtrada);
+      return filtrada;
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao consultar conteúdo");
+      return null;
     }
   }
 
   async function consultarConteudo() {
     setConteudos(null);
     setConteudosAgrupados(null);
-    if (todasDisciplinas) return consultarConteudoTodas();
-    if (!disciplinaId) return;
+    if (todasDisciplinas) {
+      await buscarConteudoTodasDisciplinas();
+      return;
+    }
+    await buscarConteudoUnico();
+  }
+
+  async function baixarRelatorioConteudo() {
+    setGerandoConteudoPdf(true);
     try {
-      const lista = await api.get<ConteudoAulaRead[]>(
-        `/faltas/conteudo?turma=${encodeURIComponent(turma)}&disciplina_id=${disciplinaId}`
-      );
-      setConteudos(lista.filter((c) => (!dataInicio || c.data >= dataInicio) && (!dataFim || c.data <= dataFim)));
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erro ao consultar conteúdo");
+      if (todasDisciplinas) {
+        const grupos = await buscarConteudoTodasDisciplinas();
+        if (!grupos) return;
+        if (grupos.length === 0) {
+          toast.error("Nenhum conteúdo registrado no período selecionado.");
+          return;
+        }
+        gerarPdfConteudoAgrupado(grupos, dataInicio, dataFim);
+        return;
+      }
+      if (!disciplinaId) return;
+      const lista = await buscarConteudoUnico();
+      if (!lista) return;
+      if (lista.length === 0) {
+        toast.error("Nenhum conteúdo registrado no período selecionado.");
+        return;
+      }
+      const disciplinaNome =
+        disciplinasDisponiveis.find((d) => d.disciplina_id === disciplinaId)?.disciplina_nome ?? "Disciplina";
+      gerarPdfConteudoUnico(lista, turma, disciplinaNome, dataInicio, dataFim);
+    } finally {
+      setGerandoConteudoPdf(false);
     }
   }
 
@@ -892,6 +1021,25 @@ function ConsultarAlunoContent() {
                   baixar. A consulta na tela funciona pra turma toda.
                 </p>
               )}
+            </div>
+          ) : aba === "conteudo" ? (
+            <div className="space-y-3">
+              <Button onClick={consultar} disabled={consultarDesabilitado}>
+                Consultar
+              </Button>
+              <div className="flex flex-wrap items-center gap-3 pt-3 border-t">
+                <span className="text-sm text-muted-foreground mr-auto">
+                  Relatório para impressão (PDF), com o conteúdo do período selecionado
+                  {todasDisciplinas ? " (todas as disciplinas)" : disciplinaId ? " (disciplina selecionada)" : ""}:
+                </span>
+                <Button
+                  variant="outline"
+                  onClick={baixarRelatorioConteudo}
+                  disabled={gerandoConteudoPdf || (!todasDisciplinas && !disciplinaId)}
+                >
+                  {gerandoConteudoPdf ? "Gerando..." : "Baixar relatório (PDF)"}
+                </Button>
+              </div>
             </div>
           ) : (
             <Button onClick={consultar} disabled={consultarDesabilitado}>
