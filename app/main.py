@@ -25,7 +25,7 @@ from app.api.routes import (
 )
 from app.core.config import settings
 
-app = FastAPI(title="SGD - Sistema de Gestão Escolar")
+app = FastAPI(title="SGE - Gestão da Convivência e Aprendizagem Escolar")
 
 app.add_middleware(
     CORSMiddleware,

@@ -44,8 +44,10 @@ export default function LoginPage() {
                 height={88}
                 className="mx-auto mb-2 rounded-full shadow-sm"
               />
-              <h1 className="text-xl font-bold text-foreground">SGD</h1>
-              <p className="text-sm text-muted-foreground">Sistema de Gestão da Disciplina Escolar</p>
+              <h1 className="text-xl font-bold text-foreground">SGE</h1>
+              <p className="text-sm text-muted-foreground text-balance leading-snug px-2">
+                Sistema de Gestão da Convivência e Aprendizagem Escolar
+              </p>
             </div>
 
             <div className="space-y-1">

@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "SGD - Sistema de Gestão da Disciplina Escolar",
-    short_name: "SGD",
+    name: "SGE - Gestão da Convivência e Aprendizagem Escolar",
+    short_name: "SGE",
     description: "Controle disciplinar escolar",
     start_url: "/",
     display: "standalone",

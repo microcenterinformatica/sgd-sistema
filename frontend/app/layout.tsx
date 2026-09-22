@@ -11,12 +11,12 @@ import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "SGD - Sistema de Gestão da Disciplina Escolar",
+  title: "SGE - Gestão da Convivência e Aprendizagem Escolar",
   description: "Controle disciplinar escolar multi-tenant",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "SGD",
+    title: "SGE",
   },
 };
 

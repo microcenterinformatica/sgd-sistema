@@ -116,8 +116,7 @@ function AppSidebar() {
             className="rounded-full shrink-0"
           />
           <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="font-semibold text-sidebar-foreground">SGD</span>
-            <span className="text-xs text-sidebar-foreground/60">Disciplina e Notas</span>
+            <span className="font-semibold text-sidebar-foreground">SGE - Sistema Gestão Escolar</span>
           </div>
         </div>
       </SidebarHeader>
@@ -206,8 +205,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <header className="flex h-14 items-center gap-2 border-b px-4">
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-5" />
-          <span className="font-semibold text-foreground">SGD</span>
-          <span className="text-muted-foreground text-sm">Sistema de Gestão Escolar</span>
+          <span className="font-semibold text-foreground">SGE - Sistema Gestão Escolar</span>
         </header>
         <main className="flex-1 bg-muted/30">{children}</main>
         <MicrocenterFooter />
