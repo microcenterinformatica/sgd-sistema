@@ -219,6 +219,7 @@ function HistoricoContent() {
   const [professores, setProfessores] = useState<Professor[]>([]);
   const [turmaFiltro, setTurmaFiltro] = useState<string>("todas");
   const [buscaNome, setBuscaNome] = useState<string>("");
+  const [visaoAgrupada, setVisaoAgrupada] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [editando, setEditando] = useState<{ aluno: Aluno; evento: EventoHistorico } | null>(null);
 
@@ -266,7 +267,7 @@ function HistoricoContent() {
     return Array.from(unicas).sort();
   }, [alunos]);
 
-  const eventosPorAluno = useMemo(() => {
+  const eventosDetalhados = useMemo(() => {
     const mapa = new Map<number, EventoHistorico[]>();
     function adicionar(alunoId: number, evento: EventoHistorico) {
       const lista = mapa.get(alunoId) ?? [];
@@ -314,6 +315,93 @@ function HistoricoContent() {
     return mapa;
   }, [registros, faltas, naoEntregues, configRanking]);
 
+  const eventosAgrupados = useMemo(() => {
+    const mapa = new Map<number, EventoHistorico[]>();
+    function adicionar(alunoId: number, evento: EventoHistorico) {
+      const lista = mapa.get(alunoId) ?? [];
+      lista.push(evento);
+      mapa.set(alunoId, lista);
+    }
+
+    // Indisciplinas continuam individuais; méritos, faltas e não entregas são agrupados.
+    for (const r of registros) {
+      if (r.tipo !== "infracao") continue;
+      adicionar(r.aluno_id, {
+        key: `registro-${r.id}`,
+        data: r.data_hora,
+        tipo: r.tipo,
+        descricao: r.descricao,
+        peso: r.peso,
+        professorNome: r.professor_nome,
+        observacao: r.observacao,
+        registroId: r.id,
+        regraId: r.regra_id,
+        professorId: r.professor_id,
+      });
+    }
+
+    const meritosPorAluno = new Map<number, RegistroDisciplinar[]>();
+    for (const r of registros) {
+      if (r.tipo !== "merito") continue;
+      const lista = meritosPorAluno.get(r.aluno_id) ?? [];
+      lista.push(r);
+      meritosPorAluno.set(r.aluno_id, lista);
+    }
+    for (const [alunoId, lista] of meritosPorAluno) {
+      const maisRecente = lista.reduce((a, b) => (a.data_hora > b.data_hora ? a : b));
+      const pesoTotal = lista.reduce((soma, r) => soma + r.peso, 0);
+      adicionar(alunoId, {
+        key: `meritos-${alunoId}`,
+        data: maisRecente.data_hora,
+        tipo: "merito",
+        descricao: lista.length === 1 ? "1 mérito" : `${lista.length} méritos`,
+        peso: pesoTotal,
+      });
+    }
+
+    const faltasPorAluno = new Map<number, FaltaRead[]>();
+    for (const f of faltas) {
+      if (f.justificada) continue;
+      const lista = faltasPorAluno.get(f.aluno_id) ?? [];
+      lista.push(f);
+      faltasPorAluno.set(f.aluno_id, lista);
+    }
+    for (const [alunoId, lista] of faltasPorAluno) {
+      const maisRecente = lista.reduce((a, b) => (a.data > b.data ? a : b));
+      adicionar(alunoId, {
+        key: `faltas-${alunoId}`,
+        data: maisRecente.data,
+        tipo: "falta",
+        descricao: lista.length === 1 ? "1 falta não justificada" : `${lista.length} faltas não justificadas`,
+        peso: configRanking.peso_falta * lista.length,
+      });
+    }
+
+    const naoEntreguesPorAluno = new Map<number, AtividadeNaoEntregueRead[]>();
+    for (const n of naoEntregues) {
+      const lista = naoEntreguesPorAluno.get(n.aluno_id) ?? [];
+      lista.push(n);
+      naoEntreguesPorAluno.set(n.aluno_id, lista);
+    }
+    for (const [alunoId, lista] of naoEntreguesPorAluno) {
+      const maisRecente = lista.reduce((a, b) => (a.data > b.data ? a : b));
+      adicionar(alunoId, {
+        key: `nao-entregues-${alunoId}`,
+        data: maisRecente.data,
+        tipo: "nao_entrega",
+        descricao: lista.length === 1 ? "1 atividade não entregue" : `${lista.length} atividades não entregues`,
+        peso: configRanking.peso_nao_entrega * lista.length,
+      });
+    }
+
+    for (const lista of mapa.values()) {
+      lista.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+    }
+    return mapa;
+  }, [registros, faltas, naoEntregues, configRanking]);
+
+  const eventosPorAluno = visaoAgrupada ? eventosAgrupados : eventosDetalhados;
+
   const alunosExibidos = useMemo(() => {
     return alunos
       .filter((a) => {
@@ -336,6 +424,15 @@ function HistoricoContent() {
         title="Histórico de Ocorrências Disciplinares"
         action={
           <div className="flex items-center gap-3 flex-wrap">
+            <label className="flex items-center gap-2 text-sm font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-md px-3 py-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={visaoAgrupada}
+                onChange={(e) => setVisaoAgrupada(e.target.checked)}
+                className="size-4 accent-violet-600"
+              />
+              Agrupar
+            </label>
             <Input
               value={buscaNome}
               onChange={(e) => setBuscaNome(e.target.value)}
