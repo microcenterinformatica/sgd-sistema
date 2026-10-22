@@ -22,7 +22,12 @@ from app.schemas.registro_disciplinar import (
     RegistroMeritoTurmaCreate,
     RegistroMeritoTurmaResponse,
 )
-from app.services.pontuacao import aplicar_infracao, aplicar_merito, recalcular_apos_edicao
+from app.services.pontuacao import (
+    DESCRICAO_BONUS_BOM_COMPORTAMENTO,
+    aplicar_infracao,
+    aplicar_merito,
+    recalcular_apos_edicao,
+)
 from app.services.whatsapp import gerar_link_whatsapp, montar_mensagem_infracao, montar_mensagem_merito
 
 router = APIRouter(prefix="/registros", tags=["registros"])
@@ -293,7 +298,9 @@ def listar_registros(session: SessionDep, usuario_atual: CurrentUserDep, aluno_i
         .join(Aluno)
         .where(
             Aluno.escola_id == usuario_atual.escola_id,
-            RegistroDisciplinar.descricao.not_in([DESCRICAO_MERITO_TURMA, DESCRICAO_REMOCAO_MERITO_TURMA]),
+            RegistroDisciplinar.descricao.not_in(
+                [DESCRICAO_MERITO_TURMA, DESCRICAO_REMOCAO_MERITO_TURMA, DESCRICAO_BONUS_BOM_COMPORTAMENTO]
+            ),
         )
     )
     if aluno_id is not None:

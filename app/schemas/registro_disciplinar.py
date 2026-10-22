@@ -50,7 +50,7 @@ class RegistroDisciplinarRead(SQLModel):
     data_hora: datetime
     observacao: Optional[str]
     professor_id: Optional[int]
-    registrado_por_usuario_id: int
+    registrado_por_usuario_id: Optional[int]
     professor_nome: Optional[str] = None
 
     @field_serializer("data_hora")

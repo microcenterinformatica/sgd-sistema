@@ -22,4 +22,6 @@ class RegistroDisciplinar(SQLModel, table=True):
     data_hora: datetime = Field(default_factory=datetime.utcnow)
     observacao: Optional[str] = None
     professor_id: Optional[int] = Field(default=None, foreign_key="professor.id")
-    registrado_por_usuario_id: int = Field(foreign_key="usuario.id")
+    # Nulo para registros gerados automaticamente pelo sistema (ex: recuperação
+    # automática de pontos), que não têm nenhum usuário humano por trás da ação.
+    registrado_por_usuario_id: Optional[int] = Field(default=None, foreign_key="usuario.id")

@@ -40,7 +40,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-type TipoEvento = "infracao" | "merito" | "falta" | "nao_entrega";
+type TipoEvento = "infracao" | "merito" | "falta" | "nao_entrega" | "recuperacao";
+
+// Mesmo marcador funcional de DESCRICAO_RECUPERACAO_AUTOMATICA em
+// app/services/pontuacao.py — identifica o registro de mérito criado pela
+// recuperação automática pra dar um rótulo/visual próprio no Histórico.
+const DESCRICAO_RECUPERACAO_AUTOMATICA = "RECUPERAÇÃO AUTOMÁTICA DE PONTOS";
+
+function tipoExibicao(registro: RegistroDisciplinar): TipoEvento {
+  if (registro.tipo === "merito" && registro.descricao === DESCRICAO_RECUPERACAO_AUTOMATICA) {
+    return "recuperacao";
+  }
+  return registro.tipo;
+}
 
 interface EventoHistorico {
   key: string;
@@ -72,6 +84,7 @@ const ROTULO_TIPO_EVENTO: Record<TipoEvento, { label: string; className: string 
   merito: { label: "Mérito", className: "" },
   falta: { label: "Falta", className: "bg-amber-100 text-amber-700" },
   nao_entrega: { label: "Não entregue", className: "bg-orange-100 text-orange-700" },
+  recuperacao: { label: "Recuperação automática", className: "bg-sky-100 text-sky-700" },
 };
 
 function BadgeEvento({ tipo }: { tipo: TipoEvento }) {
@@ -82,7 +95,7 @@ function BadgeEvento({ tipo }: { tipo: TipoEvento }) {
 }
 
 function formatarDataEvento(evento: EventoHistorico): string {
-  if (evento.tipo === "infracao" || evento.tipo === "merito") {
+  if (evento.tipo === "infracao" || evento.tipo === "merito" || evento.tipo === "recuperacao") {
     return new Date(evento.data).toLocaleString("pt-BR");
   }
   // Falta e não entrega só têm data (sem hora). new Date("aaaa-mm-dd") é
@@ -279,7 +292,7 @@ function HistoricoContent() {
       adicionar(r.aluno_id, {
         key: `registro-${r.id}`,
         data: r.data_hora,
-        tipo: r.tipo,
+        tipo: tipoExibicao(r),
         descricao: r.descricao,
         peso: r.peso,
         professorNome: r.professor_nome,
@@ -323,13 +336,15 @@ function HistoricoContent() {
       mapa.set(alunoId, lista);
     }
 
-    // Indisciplinas continuam individuais; méritos, faltas e não entregas são agrupados.
+    // Indisciplinas e recuperação automática continuam individuais; méritos
+    // (de verdade, dados por professor), faltas e não entregas são agrupados.
     for (const r of registros) {
-      if (r.tipo !== "infracao") continue;
+      const tipo = tipoExibicao(r);
+      if (tipo !== "infracao" && tipo !== "recuperacao") continue;
       adicionar(r.aluno_id, {
         key: `registro-${r.id}`,
         data: r.data_hora,
-        tipo: r.tipo,
+        tipo,
         descricao: r.descricao,
         peso: r.peso,
         professorNome: r.professor_nome,
@@ -342,7 +357,7 @@ function HistoricoContent() {
 
     const meritosPorAluno = new Map<number, RegistroDisciplinar[]>();
     for (const r of registros) {
-      if (r.tipo !== "merito") continue;
+      if (r.tipo !== "merito" || r.descricao === DESCRICAO_RECUPERACAO_AUTOMATICA) continue;
       const lista = meritosPorAluno.get(r.aluno_id) ?? [];
       lista.push(r);
       meritosPorAluno.set(r.aluno_id, lista);

@@ -22,7 +22,7 @@ from app.models.registro_falta import RegistroFalta
 from app.models.turma import Turma
 from app.models.usuario import PapelUsuario, Usuario
 from app.schemas.aluno import AlunoCreate, AlunoRead, AlunoUpdate
-from app.services.pontuacao import aplicar_recuperacoes_pendentes
+from app.services.pontuacao import DESCRICAO_BONUS_BOM_COMPORTAMENTO, aplicar_recuperacoes_pendentes
 from app.services.relatorio_pdf import EventoRelatorio, gerar_pdf_historico_aluno
 from app.services.whatsapp import gerar_link_whatsapp, montar_mensagem_relatorio
 
@@ -197,7 +197,9 @@ def gerar_relatorio_disciplinar(
             RegistroDisciplinar.aluno_id == aluno_id,
             RegistroDisciplinar.data_hora >= inicio_dt,
             RegistroDisciplinar.data_hora <= fim_dt,
-            RegistroDisciplinar.descricao.not_in([DESCRICAO_MERITO_TURMA, DESCRICAO_REMOCAO_MERITO_TURMA]),
+            RegistroDisciplinar.descricao.not_in(
+                [DESCRICAO_MERITO_TURMA, DESCRICAO_REMOCAO_MERITO_TURMA, DESCRICAO_BONUS_BOM_COMPORTAMENTO]
+            ),
         )
     ).all()
 

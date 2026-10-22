@@ -233,7 +233,9 @@ function ConfiguracaoRecuperacaoCard() {
         <p className="text-sm text-muted-foreground">
           Quando ativado, um aluno que ficar um período seguido sem nenhuma infração nova recebe um
           desconto automático na pontuação de indisciplina — um incentivo por bom comportamento
-          contínuo. A contagem reinicia sempre que o aluno recebe uma infração nova.
+          contínuo. A contagem é em dias de aula: sábados, domingos e dias em que o aluno faltou
+          (justificada ou não) não contam. A contagem reinicia sempre que o aluno recebe uma infração
+          nova.
         </p>
 
         <label className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -249,7 +251,7 @@ function ConfiguracaoRecuperacaoCard() {
 
         <div className="grid sm:grid-cols-2 gap-4 max-w-md">
           <div className="space-y-1">
-            <Label>Dias sem infração para recuperar</Label>
+            <Label>Dias de aula sem infração para recuperar</Label>
             {carregando ? (
               <p className="text-sm text-muted-foreground">Carregando...</p>
             ) : (

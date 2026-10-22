@@ -24,3 +24,10 @@ class Aluno(SQLModel, table=True):
     pontos_atuais: int = Field(default=0)
     data_ultima_infracao: Optional[datetime] = None
     data_ultima_recuperacao: Optional[datetime] = None
+    # Marca a 1a vez que esse aluno foi avaliado pelo bônus de bom
+    # comportamento contínuo. Evita crédito retroativo: se o aluno já
+    # estava zerado (recuperação antiga, de antes dessa função existir),
+    # o relógio do bônus é zerado pra "agora" nesse primeiro encontro, em
+    # vez de aproveitar uma `data_ultima_recuperacao` antiga e já pagar
+    # vários ciclos atrasados de uma vez. Ver app/services/pontuacao.py.
+    data_inicio_bonus_comportamento: Optional[datetime] = None

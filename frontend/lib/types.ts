@@ -58,7 +58,7 @@ export interface RegistroDisciplinar {
   data_hora: string;
   observacao: string | null;
   professor_id: number | null;
-  registrado_por_usuario_id: number;
+  registrado_por_usuario_id: number | null;
   professor_nome: string | null;
 }
 
