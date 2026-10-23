@@ -8,7 +8,7 @@ from app.api.deps import CurrentUserDep, SessionDep
 from app.core.permissoes import buscar_professor_do_usuario, verificar_permissao_turma_disciplina
 from app.models.aluno import Aluno
 from app.models.atividade import Atividade
-from app.models.categoria_atividade import CategoriaAtividade
+from app.models.categoria_atividade import CategoriaAtividade, TipoCategoria
 from app.models.disciplina import Disciplina
 from app.models.lancamento import Lancamento
 from app.models.turma import Turma
@@ -89,6 +89,11 @@ def _get_categoria_valida(
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Categoria inválida para esta disciplina"
+        )
+    if categoria.tipo == TipoCategoria.conduta:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A categoria de conduta tem nota automática e não recebe atividades.",
         )
     return categoria
 

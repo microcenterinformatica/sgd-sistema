@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Lock } from "lucide-react";
 import { calcularStatus } from "@/lib/conduta";
 import { Aluno, BoletimAluno, Punicao } from "@/lib/types";
 
@@ -38,6 +39,7 @@ export function BoletimTurmaCard({
                 <div className="flex-1 flex flex-wrap gap-2">
                   {b.grupos.map((g) => (
                     <span key={g.categoria} className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+                      {g.automatica && <Lock className="inline size-3 mr-0.5 -mt-0.5" />}
                       {g.categoria} (peso {g.peso}): {g.pontos} pts
                     </span>
                   ))}

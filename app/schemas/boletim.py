@@ -10,6 +10,9 @@ class BoletimGrupoPeso(SQLModel):
     quantidade_atividades: int
     media: float
     pontos: float
+    # Categoria de conduta: nota calculada pelos registros disciplinares, sem atividades.
+    automatica: bool = False
+    quantidade_ocorrencias: int = 0
 
 
 class BoletimAluno(SQLModel):

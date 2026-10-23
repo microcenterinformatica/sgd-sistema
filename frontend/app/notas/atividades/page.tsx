@@ -326,7 +326,7 @@ function AtividadesContent() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todas">Todas as categorias</SelectItem>
-                  {categorias.map((c) => (
+                  {categorias.filter((c) => c.tipo !== "conduta").map((c) => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       {c.nome}
                     </SelectItem>

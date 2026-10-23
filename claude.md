@@ -119,3 +119,9 @@ ConfiguracaoRecuperacao (por escola, hoje fixo em 7 dias / 2 pontos)
 4. Comece pedindo a Fase 1 por partes, ex:
    > "Baseado no CLAUDE.md, crie a estrutura inicial do backend FastAPI com SQLModel: models de Escola, Usuario, Aluno, RegraInfracao, Punicao, Professor e RegistroDisciplinar, com Alembic configurado."
 5. Revise e aprove cada mudança antes de seguir para a próxima parte (autenticação, depois endpoints de negócio, etc.)
+
+---
+
+## 8. Hábito de trabalho: checklist
+
+Toda mudança começa e termina atualizando o `CHECKLIST.md` na raiz: abrir o bloco "Mudança atual" pelo modelo, marcar cada etapa ao concluir e, ao final, mover para "Já feito" em uma linha. Manter tudo o mais resumido possível.

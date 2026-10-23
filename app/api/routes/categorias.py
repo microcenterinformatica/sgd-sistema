@@ -4,7 +4,7 @@ from sqlmodel import select
 
 from app.api.deps import CurrentUserDep, SessionDep
 from app.core.permissoes import buscar_professor_do_usuario, verificar_permissao_disciplina
-from app.models.categoria_atividade import CategoriaAtividade
+from app.models.categoria_atividade import CategoriaAtividade, TipoCategoria
 from app.schemas.categoria_atividade import (
     CategoriaAtividadeCreate,
     CategoriaAtividadeRead,
@@ -72,6 +72,21 @@ def criar_categoria(dados: CategoriaAtividadeCreate, session: SessionDep, usuari
             status_code=status.HTTP_409_CONFLICT,
             detail="Você já tem uma categoria com esse nome nesta disciplina.",
         )
+    if dados.tipo == TipoCategoria.conduta:
+        conduta_existente = session.exec(
+            select(CategoriaAtividade).where(
+                CategoriaAtividade.escola_id == usuario_atual.escola_id,
+                CategoriaAtividade.professor_id == professor.id,
+                CategoriaAtividade.disciplina_id == dados.disciplina_id,
+                CategoriaAtividade.ativo == True,  # noqa: E712
+                CategoriaAtividade.tipo == TipoCategoria.conduta,
+            )
+        ).first()
+        if conduta_existente is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Você já tem uma categoria de conduta nesta disciplina.",
+            )
 
     categoria = CategoriaAtividade(
         escola_id=usuario_atual.escola_id,
@@ -79,6 +94,8 @@ def criar_categoria(dados: CategoriaAtividadeCreate, session: SessionDep, usuari
         disciplina_id=dados.disciplina_id,
         nome=nome,
         peso=dados.peso,
+        tipo=dados.tipo,
+        desconto_por_ponto=dados.desconto_por_ponto,
     )
     session.add(categoria)
     session.commit()
@@ -96,6 +113,8 @@ def atualizar_categoria(
     categoria = _get_categoria_do_professor(session, categoria_id, usuario_atual.escola_id, professor.id)
 
     for campo, valor in dados.model_dump(exclude_unset=True).items():
+        if campo == "desconto_por_ponto" and categoria.tipo != TipoCategoria.conduta:
+            continue
         setattr(categoria, campo, valor)
     session.add(categoria)
     session.commit()

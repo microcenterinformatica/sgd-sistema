@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-import { BookOpen, CalendarCheck, ClipboardList, Download, FileText, ListChecks } from "lucide-react";
+import { BookOpen, CalendarCheck, ClipboardList, Download, FileText, ListChecks, Lock } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError, baixarArquivo } from "@/lib/api";
 import { calcularStatus } from "@/lib/conduta";
@@ -1294,7 +1294,17 @@ function ConsultarAlunoContent() {
             {boletim.grupos.map((g) => (
               <div key={g.categoria} className="py-2 flex items-center justify-between text-sm first:pt-0">
                 <span className="text-muted-foreground">
-                  {g.categoria} (peso {g.peso}) · {g.quantidade_atividades} atividade(s) · média {g.media}
+                  {g.automatica ? (
+                    <>
+                      <Lock className="inline size-3 mr-1 -mt-0.5" />
+                      {g.categoria} (peso {g.peso}) · conduta automática · {g.quantidade_ocorrencias} registro(s) · nota{" "}
+                      {g.media}
+                    </>
+                  ) : (
+                    <>
+                      {g.categoria} (peso {g.peso}) · {g.quantidade_atividades} atividade(s) · média {g.media}
+                    </>
+                  )}
                 </span>
                 <span className="font-medium text-foreground">{g.pontos} pts</span>
               </div>

@@ -121,12 +121,16 @@ export interface Atividade {
   total_lancamentos: number;
 }
 
+export type TipoCategoria = "manual" | "conduta";
+
 export interface CategoriaAtividade {
   id: number;
   disciplina_id: number;
   nome: string;
   peso: number;
   ativo: boolean;
+  tipo: TipoCategoria;
+  desconto_por_ponto: number | null;
 }
 
 export interface Disciplina {
@@ -323,6 +327,8 @@ export interface BoletimGrupoPeso {
   quantidade_atividades: number;
   media: number;
   pontos: number;
+  automatica: boolean;
+  quantidade_ocorrencias: number;
 }
 
 export interface BoletimAluno {

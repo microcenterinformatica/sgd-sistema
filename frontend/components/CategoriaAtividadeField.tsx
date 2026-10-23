@@ -16,6 +16,8 @@ export function CategoriaAtividadeField({
   /** Largura do campo (classe de grid-column). */
   colSpanClassName?: string;
 }) {
+  // Categoria de conduta tem nota automática e não recebe atividades.
+  const categoriasManuais = categorias.filter((c) => c.tipo !== "conduta");
   return (
     <div className={`${colSpanClassName} space-y-1`}>
       <Label title="Agrupa atividades/provas para o cálculo do boletim. O peso é o cadastrado na categoria (botão Gerenciar categorias) e vale para todas as turmas dessa disciplina.">
@@ -25,13 +27,13 @@ export function CategoriaAtividadeField({
         <SelectTrigger className="w-full">
           <SelectValue>
             {(v: string) => {
-              const c = categorias.find((cat) => String(cat.id) === v);
+              const c = categoriasManuais.find((cat) => String(cat.id) === v);
               return c ? `${c.nome} (peso ${c.peso})` : "Selecione...";
             }}
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {categorias.map((c) => (
+          {categoriasManuais.map((c) => (
             <SelectItem key={c.id} value={String(c.id)}>
               {c.nome} (peso {c.peso})
             </SelectItem>

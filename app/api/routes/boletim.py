@@ -1,18 +1,20 @@
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select
 
 from app.api.deps import CurrentUserDep, SessionDep
 from app.core.permissoes import falta_agrupada_por_dia, verificar_permissao_turma_disciplina
+from app.core.tempo import FUSO_BRASIL, para_horario_local
 from app.models.ajuste_nota import AjusteNota
 from app.models.aluno import Aluno
 from app.models.atividade import Atividade
 from app.models.atribuicao import Atribuicao
-from app.models.categoria_atividade import CategoriaAtividade
+from app.models.categoria_atividade import CategoriaAtividade, TipoCategoria
 from app.models.configuracao_periodo import ConfiguracaoPeriodo
 from app.models.disciplina import Disciplina
 from app.models.lancamento import Lancamento
+from app.models.registro_disciplinar import RegistroDisciplinar
 from app.models.registro_falta import RegistroFalta
 from app.schemas.ajuste_nota import AjusteNotaCreate, AjusteNotaRead
 from app.schemas.boletim import (
@@ -90,6 +92,83 @@ def _buscar_ajustes(
     return {a.aluno_id: a for a in ajustes}
 
 
+def _inicio_do_dia_local_em_utc(dia: date) -> datetime:
+    """Meia-noite de Brasília do dia informado, convertida pro UTC naive usado no banco."""
+    return datetime.combine(dia, time.min, tzinfo=FUSO_BRASIL).astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _buscar_categorias_conduta(
+    session: SessionDep, escola_id: int, turma: str, disciplina_id: int, data_inicio: date | None
+) -> list[CategoriaAtividade]:
+    """Categorias de conduta dos professores que lecionam a disciplina nesta turma.
+
+    Período que ainda não começou (ex: 3º trimestre em agosto) fica sem nota de conduta,
+    senão o aluno já "ganharia" 10 num trimestre em que nem houve aula.
+    """
+    hoje = para_horario_local(datetime.now(timezone.utc)).date()
+    if data_inicio is not None and data_inicio > hoje:
+        return []
+    professor_ids = session.exec(
+        select(Atribuicao.professor_id).where(
+            Atribuicao.escola_id == escola_id,
+            Atribuicao.turma == turma,
+            Atribuicao.disciplina_id == disciplina_id,
+        )
+    ).all()
+    if not professor_ids:
+        return []
+    return session.exec(
+        select(CategoriaAtividade).where(
+            CategoriaAtividade.escola_id == escola_id,
+            CategoriaAtividade.disciplina_id == disciplina_id,
+            CategoriaAtividade.professor_id.in_(professor_ids),
+            CategoriaAtividade.tipo == TipoCategoria.conduta,
+            CategoriaAtividade.ativo == True,  # noqa: E712
+        )
+    ).all()
+
+
+def _buscar_registros_conduta(
+    session: SessionDep, aluno_ids: list[int], data_inicio: date | None, data_fim: date | None
+) -> dict[int, list[RegistroDisciplinar]]:
+    """Indisciplinas e méritos lançados por pessoas no período, em ordem cronológica.
+
+    Registros automáticos do sistema (recuperação de pontos e bônus de bom comportamento,
+    sem `registrado_por_usuario_id`) ficam de fora: a nota de conduta já parte de 10 a
+    cada trimestre, então devolver pontos só pela passagem do tempo apagaria a indisciplina.
+    """
+    if not aluno_ids:
+        return {}
+    query = select(RegistroDisciplinar).where(
+        RegistroDisciplinar.aluno_id.in_(aluno_ids),
+        RegistroDisciplinar.registrado_por_usuario_id.is_not(None),
+    )
+    if data_inicio:
+        query = query.where(RegistroDisciplinar.data_hora >= _inicio_do_dia_local_em_utc(data_inicio))
+    if data_fim:
+        query = query.where(
+            RegistroDisciplinar.data_hora < _inicio_do_dia_local_em_utc(data_fim + timedelta(days=1))
+        )
+    query = query.order_by(RegistroDisciplinar.data_hora, RegistroDisciplinar.id)
+    por_aluno: dict[int, list[RegistroDisciplinar]] = {}
+    for r in session.exec(query).all():
+        por_aluno.setdefault(r.aluno_id, []).append(r)
+    return por_aluno
+
+
+def calcular_nota_conduta(registros: list[RegistroDisciplinar], desconto_por_ponto: float) -> float:
+    """Começa em 10; cada ponto de indisciplina desconta `desconto_por_ponto` e cada ponto
+    de mérito devolve o mesmo valor, sempre dentro de 0 a 10. Aplicado em ordem
+    cronológica, então mérito recebido com a nota já cheia não vira "crédito" para
+    indisciplinas futuras. Mérito de turma removido (peso positivo) desconta.
+    """
+    nota = 10.0
+    for r in registros:
+        # Infração grava peso positivo; mérito grava negativo (ver registros.py).
+        nota = min(10.0, max(0.0, nota - r.peso * desconto_por_ponto))
+    return nota
+
+
 def _calcular_boletim(
     session: SessionDep,
     escola_id: int,
@@ -106,7 +185,9 @@ def _calcular_boletim(
     peso da categoria). A soma dos pontos de todos os grupos é a nota final; a soma dos
     pesos é o total máximo possível. O peso de cada categoria vem sempre do cadastro dela
     (CategoriaAtividade), nunca da atividade individual — por isso categorias diferentes
-    nunca se misturam, mesmo que tenham o mesmo peso.
+    nunca se misturam, mesmo que tenham o mesmo peso. Categorias de conduta entram como um
+    grupo a mais, com a nota calculada pelos registros disciplinares do período
+    (`calcular_nota_conduta`), sem atividades.
     """
     query = select(Atividade).where(
         Atividade.escola_id == escola_id,
@@ -129,46 +210,37 @@ def _calcular_boletim(
     )
     ajustes_por_aluno = _buscar_ajustes(session, disciplina_id, trimestre, [a.id for a in alunos])
 
-    if not atividades:
-        resultado_sem_atividades: list[BoletimAluno] = []
-        for a in alunos:
-            ajuste = ajustes_por_aluno.get(a.id)
-            nota_ajustada = ajuste.nota_ajustada if ajuste else None
-            resultado_sem_atividades.append(
-                BoletimAluno(
-                    aluno_id=a.id,
-                    aluno_nome=a.nome,
-                    grupos=[],
-                    peso_total=0.0,
-                    nota_calculada=0.0,
-                    nota_final=nota_ajustada if nota_ajustada is not None else 0.0,
-                    nota_ajustada=nota_ajustada,
-                    ajuste_motivo=ajuste.motivo if ajuste else None,
-                    ajuste_id=ajuste.id if ajuste else None,
-                    total_faltas=faltas_por_aluno.get(a.id, (0, 0))[0],
-                    faltas_justificadas=faltas_por_aluno.get(a.id, (0, 0))[1],
-                )
-            )
-        return resultado_sem_atividades
-
     atividades_por_categoria: dict[int, list[Atividade]] = {}
     for a in atividades:
         atividades_por_categoria.setdefault(a.categoria_id, []).append(a)
 
-    categorias = {
-        c.id: c
-        for c in session.exec(
-            select(CategoriaAtividade).where(CategoriaAtividade.id.in_(atividades_por_categoria.keys()))
-        ).all()
-    }
+    categorias = (
+        {
+            c.id: c
+            for c in session.exec(
+                select(CategoriaAtividade).where(CategoriaAtividade.id.in_(atividades_por_categoria.keys()))
+            ).all()
+        }
+        if atividades_por_categoria
+        else {}
+    )
 
     atividade_ids = [a.id for a in atividades]
-    lancamentos = session.exec(
-        select(Lancamento).where(Lancamento.atividade_id.in_(atividade_ids))
-    ).all()
+    lancamentos = (
+        session.exec(select(Lancamento).where(Lancamento.atividade_id.in_(atividade_ids))).all()
+        if atividade_ids
+        else []
+    )
     nota_por_atividade_aluno: dict[tuple[int, int], float] = {
         (l.atividade_id, l.aluno_id): l.nota for l in lancamentos if l.nota is not None
     }
+
+    categorias_conduta = _buscar_categorias_conduta(session, escola_id, turma, disciplina_id, data_inicio)
+    registros_conduta = (
+        _buscar_registros_conduta(session, [a.id for a in alunos], data_inicio, data_fim)
+        if categorias_conduta
+        else {}
+    )
 
     resultado: list[BoletimAluno] = []
     for aluno in alunos:
@@ -190,6 +262,24 @@ def _calcular_boletim(
                     quantidade_atividades=len(atividades_da_categoria),
                     media=round(media, 2),
                     pontos=round(pontos, 2),
+                )
+            )
+            nota_calculada += pontos
+            peso_total += categoria.peso
+
+        registros_aluno = registros_conduta.get(aluno.id, [])
+        for categoria in sorted(categorias_conduta, key=lambda c: c.nome.lower()):
+            nota_conduta = calcular_nota_conduta(registros_aluno, categoria.desconto_por_ponto or 0.5)
+            pontos = nota_conduta / 10 * categoria.peso
+            grupos.append(
+                BoletimGrupoPeso(
+                    categoria=categoria.nome,
+                    peso=categoria.peso,
+                    quantidade_atividades=0,
+                    media=round(nota_conduta, 2),
+                    pontos=round(pontos, 2),
+                    automatica=True,
+                    quantidade_ocorrencias=len(registros_aluno),
                 )
             )
             nota_calculada += pontos
