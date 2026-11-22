@@ -35,6 +35,8 @@ TABELAS_PROPRIAS = {
     "punicao",
     "registro_disciplinar",
     "configuracao_recuperacao",
+    "cartao_aluno",
+    "transacao_veracoin",
 }
 
 

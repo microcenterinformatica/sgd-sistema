@@ -20,6 +20,7 @@ from app.models.configuracao_periodo import ConfiguracaoPeriodo
 from app.models.ajuste_nota import AjusteNota
 from app.models.ano_letivo import AnoLetivo
 from app.models.matricula_turma import MatriculaTurma
+from app.models.feirinha import CartaoAluno, TransacaoVeracoin, TipoTransacaoVeracoin
 
 __all__ = [
     "Escola",
@@ -46,4 +47,7 @@ __all__ = [
     "AjusteNota",
     "AnoLetivo",
     "MatriculaTurma",
+    "CartaoAluno",
+    "TransacaoVeracoin",
+    "TipoTransacaoVeracoin",
 ]

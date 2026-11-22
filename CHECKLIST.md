@@ -6,18 +6,19 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 
 ## 🔧 Mudança atual
 
-### Nota de Conduta automática — 23/10/2026
-**Objetivo:** categoria de atividade cuja nota vem sozinha da conduta do aluno no trimestre.
-**Regras:** começa em 10 a cada trimestre · indisciplina desconta, mérito devolve (máx. 10, mín. 0) · sem faltas/não entregas · cada professora cria a sua categoria e escolhe o peso
-- [x] Combinar regra com o usuário
-- [x] Backend (campo na categoria + migração `e5b8c2f7a9d3` cadeia notas + cálculo no boletim)
-- [x] Frontend (opção em Gerenciar Categorias + nota com cadeado no boletim)
-- [x] Testar local
-- [x] Usuário revisar na tela
-- [x] Commit
+### Cartão Veracom com QR + Caixa da Feirinha — 22/11/2026
+**Objetivo:** cartão impresso com QR por aluno; caixa no celular debita do saldo (= Patrimônio Disciplinar − gastos). Ref: `docs/mudancas.md`
+- [x] Combinar regra/tela com o usuário (sem trocar nome/logo da moeda, sem foto; ranking intocado)
+- [x] Backend (cartao_aluno + transacao_veracoin, linhagem `alembic/`, endpoints)
+- [x] Testes pytest (banco local `sgd_test`, 14 ok)
+- [x] Frontend (/feirinha/caixa, /feirinha/resumo, /cartoes, /cartoes/imprimir)
+- [x] Extra pedido no teste: Consulta de Saldo + extrato (tela própria + atalho no caixa)
+- [x] Menu lateral "Banco" com submenus Caixa, Consulta de Saldo e Cartões
+- [x] Testar local (usuário aprovou)
+- [x] Commit (sem misturar arquivos dos Indicadores)
 - [ ] Backup do banco de produção
 - [ ] Migração em produção + conferir
-- [ ] Push / deploy + conferir em produção
+- [ ] Push / deploy (Render + Vercel) + conferir em produção (câmera exige HTTPS)
 
 <!--
 ### <Nome da mudança> — <data>
@@ -26,7 +27,7 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 - [ ] Backend (modelo / migração / endpoint)
 - [ ] Frontend (tela)
 - [ ] Testar local
-- [x] Commit
+- [ ] Commit
 - [ ] Backup do banco de produção
 - [ ] Migração em produção + conferir
 - [ ] Push / deploy (Render + Vercel) + conferir em produção
@@ -36,7 +37,6 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 
 ## ⏳ Pendente
 
-- [ ] **Deploy da recuperação por dias de aula + bônus de bom comportamento** (commit `d270c84`, 2 migrações) 💻
 - [~] **Indicadores locais (BI nativo)**: código não commitado na branch `feature/indicadores-locais` 💻
 - [ ] Marcar turmas reais (1B, 2B, 5A) como Fundamental 1 ou 2 (checar faltas antes)
 - [ ] Fix de código do `search_path` do pooler Neon (hoje resolvido só por configuração)
@@ -46,7 +46,7 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 
 ---
 
-## ✅ Já feito (resumo, de 24/08 a 22/10/2026)
+## ✅ Já feito (resumo, de 24/08 a 23/10/2026)
 
 **Base do sistema** 🚀
 - [x] Backend FastAPI + PostgreSQL e frontend Next.js, multi-escola, com login e papéis
@@ -61,6 +61,7 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 - [x] Aluno com histórico não pode ser excluído; registros individuais podem
 
 **Disciplina** 🚀
+- [x] Recuperação automática conta dias de aula + bônus de bom comportamento
 - [x] Registro de indisciplina/mérito com edição de data/hora (só admin/coordenação)
 - [x] Mérito em lote para a turma
 - [x] Recuperação automática de pontos configurável
@@ -78,6 +79,7 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 - [x] Pendências de entrega por atividade
 - [x] Chamada: falta única por dia no Fundamental 1 (exceto disciplina especialista)
 - [x] Ajuste manual da nota final do trimestre
+- [x] **Nota de Conduta automática** (23/10): categoria que começa em 10 por trimestre e desconta pela indisciplina
 
 **Consultas e relatórios** 🚀
 - [x] Consultas em abas: Conteúdo, Frequência, Atividades, Histórico, Boletim, visão do aluno

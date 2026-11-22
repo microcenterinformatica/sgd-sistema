@@ -21,7 +21,13 @@ import {
   Settings2,
   Layers,
   CalendarRange,
+  CreditCard,
+  ShoppingBasket,
+  Wallet,
+  Landmark,
+  ChevronRight,
 } from "lucide-react";
+import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   Sidebar,
@@ -35,6 +41,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
@@ -46,6 +55,13 @@ const ITENS_PRINCIPAIS = [
   { href: "/alunos", label: "Registro de Ocorrências", icon: ClipboardList },
   { href: "/historico", label: "Histórico Disciplinar", icon: BookOpen },
   { href: "/ranking", label: "Patrimônio Disciplinar", icon: Trophy },
+];
+
+// Menu "Banco" (feirinha): submenus abaixo de um item que abre/fecha.
+const ITENS_BANCO = [
+  { href: "/feirinha/caixa", label: "Caixa", icon: ShoppingBasket },
+  { href: "/feirinha/consulta", label: "Consulta de Saldo", icon: Wallet },
+  { href: "/cartoes", label: "Cartões", icon: CreditCard },
 ];
 
 const ITENS_GESTAO = [
@@ -93,6 +109,55 @@ function NavItens({ itens }: { itens: typeof ITENS_PRINCIPAIS }) {
   );
 }
 
+function MenuBanco() {
+  const pathname = usePathname();
+  const { setOpenMobile, state, setOpen } = useSidebar();
+  const dentroDoBanco =
+    pathname?.startsWith("/feirinha") || pathname === "/cartoes" || pathname?.startsWith("/cartoes/");
+  const [aberto, setAberto] = useState(Boolean(dentroDoBanco));
+
+  function alternar() {
+    // Com a barra recolhida (só ícones) os submenus não aparecem: expande a barra primeiro.
+    if (state === "collapsed") {
+      setOpen(true);
+      setAberto(true);
+      return;
+    }
+    setAberto((a) => !a);
+  }
+
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton onClick={alternar} isActive={Boolean(dentroDoBanco) && !aberto} tooltip="Banco" aria-expanded={aberto}>
+          <Landmark />
+          <span>Banco</span>
+          <ChevronRight className={`ml-auto transition-transform ${aberto ? "rotate-90" : ""}`} />
+        </SidebarMenuButton>
+        {aberto && (
+          <SidebarMenuSub>
+            {ITENS_BANCO.map((item) => {
+              const ativo = pathname === item.href || pathname?.startsWith(item.href + "/");
+              return (
+                <SidebarMenuSubItem key={item.href}>
+                  <SidebarMenuSubButton
+                    render={<Link href={item.href} />}
+                    isActive={ativo}
+                    onClick={() => setOpenMobile(false)}
+                  >
+                    <item.icon />
+                    <span>{item.label}</span>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              );
+            })}
+          </SidebarMenuSub>
+        )}
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+}
+
 function AppSidebar() {
   const { user, logout } = useAuth();
   if (!user) return null;
@@ -125,6 +190,7 @@ function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <NavItens itens={ITENS_PRINCIPAIS} />
+            <MenuBanco />
           </SidebarGroupContent>
         </SidebarGroup>
 

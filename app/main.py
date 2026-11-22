@@ -13,6 +13,7 @@ from app.api.routes import (
     disciplinas,
     escolas,
     faltas,
+    feirinha,
     painel,
     professores,
     punicoes,
@@ -55,6 +56,7 @@ app.include_router(boletim.router)
 app.include_router(ranking.router)
 app.include_router(anos_letivos.router)
 app.include_router(painel.router)
+app.include_router(feirinha.router)
 
 
 @app.get("/health")
