@@ -26,7 +26,7 @@ from app.services.pontuacao import (
     DESCRICAO_BONUS_BOM_COMPORTAMENTO,
     aplicar_infracao,
     aplicar_merito,
-    recalcular_apos_edicao,
+    calcular_pontos_do_historico,
 )
 from app.services.whatsapp import gerar_link_whatsapp, montar_mensagem_infracao, montar_mensagem_merito
 
@@ -35,6 +35,12 @@ router = APIRouter(prefix="/registros", tags=["registros"])
 GESTAO_ROLES = (PapelUsuario.admin_escola, PapelUsuario.coordenacao)
 DESCRICAO_MERITO_TURMA = "PONTO DE MÉRITO/BÔNUS (turma)"
 DESCRICAO_REMOCAO_MERITO_TURMA = "REMOÇÃO DE MÉRITO (turma)"
+# Contam só no Ranking: nunca mexem em Aluno.pontos_atuais.
+DESCRICOES_FORA_DA_PONTUACAO = (
+    DESCRICAO_MERITO_TURMA,
+    DESCRICAO_REMOCAO_MERITO_TURMA,
+    DESCRICAO_BONUS_BOM_COMPORTAMENTO,
+)
 
 
 def _get_aluno_da_escola(session: SessionDep, aluno_id: int, escola_id: int) -> Aluno:
@@ -68,6 +74,22 @@ def _get_registro_da_escola(session: SessionDep, registro_id: int, escola_id: in
     if aluno is None or aluno.escola_id != escola_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro não encontrado")
     return registro
+
+
+def _refazer_pontos(session: SessionDep, aluno: Aluno) -> None:
+    """Refaz os pontos pelo histórico, em vez de "devolver" o peso do registro
+    editado/excluído: um mérito dado a aluno zerado não abateu nada (piso
+    zero), e devolvê-lo inteiro criava pontos de indisciplina inexistentes."""
+    aluno.pontos_atuais = calcular_pontos_do_historico(
+        session.exec(
+            select(RegistroDisciplinar.peso)
+            .where(
+                RegistroDisciplinar.aluno_id == aluno.id,
+                RegistroDisciplinar.descricao.not_in(DESCRICOES_FORA_DA_PONTUACAO),
+            )
+            .order_by(RegistroDisciplinar.data_hora, RegistroDisciplinar.id)
+        ).all()
+    )
 
 
 def _montar_read(registro: RegistroDisciplinar, professor_nome: Optional[str]) -> RegistroDisciplinarRead:
@@ -238,9 +260,6 @@ def editar_registro_infracao(
     if data_hora_utc.tzinfo is not None:
         data_hora_utc = data_hora_utc.astimezone(timezone.utc).replace(tzinfo=None)
 
-    peso_antigo = registro.peso
-    recalcular_apos_edicao(aluno, peso_antigo, regra.peso)
-
     registro.regra_id = regra.id
     registro.descricao = regra.descricao
     registro.peso = regra.peso
@@ -250,6 +269,8 @@ def editar_registro_infracao(
 
     session.add(registro)
     session.flush()
+
+    _refazer_pontos(session, aluno)
 
     # Recalcula a partir do historico real (nao so "agora") pra que o relogio
     # da recuperacao automatica reflita a data editada, inclusive quando o
@@ -284,9 +305,11 @@ def excluir_registro(
     registro = _get_registro_da_escola(session, registro_id, usuario_atual.escola_id)
     aluno = session.get(Aluno, registro.aluno_id)
 
-    recalcular_apos_edicao(aluno, registro.peso, 0)
-
     session.delete(registro)
+    session.flush()
+
+    _refazer_pontos(session, aluno)
+
     session.add(aluno)
     session.commit()
 
@@ -298,9 +321,7 @@ def listar_registros(session: SessionDep, usuario_atual: CurrentUserDep, aluno_i
         .join(Aluno)
         .where(
             Aluno.escola_id == usuario_atual.escola_id,
-            RegistroDisciplinar.descricao.not_in(
-                [DESCRICAO_MERITO_TURMA, DESCRICAO_REMOCAO_MERITO_TURMA, DESCRICAO_BONUS_BOM_COMPORTAMENTO]
-            ),
+            RegistroDisciplinar.descricao.not_in(DESCRICOES_FORA_DA_PONTUACAO),
         )
     )
     if aluno_id is not None:

@@ -6,19 +6,15 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 
 ## 🔧 Mudança atual
 
-### Cartão Veracom com QR + Caixa da Feirinha — 22/11/2026
-**Objetivo:** cartão impresso com QR por aluno; caixa no celular debita do saldo (= Patrimônio Disciplinar − gastos). Ref: `docs/mudancas.md`
-- [x] Combinar regra/tela com o usuário (sem trocar nome/logo da moeda, sem foto; ranking intocado)
-- [x] Backend (cartao_aluno + transacao_veracoin, linhagem `alembic/`, endpoints)
-- [x] Testes pytest (banco local `sgd_test`, 14 ok)
-- [x] Frontend (/feirinha/caixa, /feirinha/resumo, /cartoes, /cartoes/imprimir)
-- [x] Extra pedido no teste: Consulta de Saldo + extrato (tela própria + atalho no caixa)
-- [x] Menu lateral "Banco" com submenus Caixa, Consulta de Saldo e Cartões
-- [x] Testar local (usuário aprovou)
-- [x] Commit (sem misturar arquivos dos Indicadores)
+### Excluir/editar registro não pode inflar pontos — 24/11
+**Objetivo:** exclusão e edição refazem os pontos pelo histórico; acertar alunos afetados (ex.: Sarah, 49)
+- [x] Causa confirmada (méritos altos lançados e excluídos)
+- [x] Backend (exclusão e edição)
+- [x] Testar local (`tests/test_recalculo_pontos.py`)
+- [x] Aprovação do usuário + commit
+- [ ] Push / deploy (Render) + conferir
 - [ ] Backup do banco de produção
-- [ ] Migração em produção + conferir
-- [ ] Push / deploy (Render + Vercel) + conferir em produção (câmera exige HTTPS)
+- [ ] Acertar pontos dos alunos afetados + conferir
 
 <!--
 ### <Nome da mudança> — <data>
@@ -46,7 +42,7 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 
 ---
 
-## ✅ Já feito (resumo, de 24/08 a 23/10/2026)
+## ✅ Já feito (resumo, de 24/08 a 22/11/2026)
 
 **Base do sistema** 🚀
 - [x] Backend FastAPI + PostgreSQL e frontend Next.js, multi-escola, com login e papéis
@@ -61,6 +57,7 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 - [x] Aluno com histórico não pode ser excluído; registros individuais podem
 
 **Disciplina** 🚀
+- [x] Banco da feirinha: cartão com QR, Caixa, Consulta de Saldo com extrato e Cartões (22/11, `bb8fa26`)
 - [x] Recuperação automática conta dias de aula + bônus de bom comportamento
 - [x] Registro de indisciplina/mérito com edição de data/hora (só admin/coordenação)
 - [x] Mérito em lote para a turma

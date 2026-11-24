@@ -42,8 +42,14 @@ def aplicar_merito(aluno: Aluno, pontos_bonus: int) -> None:
     aluno.pontos_atuais = max(0, aluno.pontos_atuais - pontos_bonus)
 
 
-def recalcular_apos_edicao(aluno: Aluno, peso_antigo: int, peso_novo: int) -> None:
-    aluno.pontos_atuais = max(0, aluno.pontos_atuais - peso_antigo + peso_novo)
+def calcular_pontos_do_historico(pesos: Sequence[int]) -> int:
+    """Refaz a pontuação a partir dos pesos em ordem cronológica, com o piso
+    zero aplicado a cada passo. Somar tudo e aplicar o piso só no fim dá
+    resultado errado (mérito dado a quem já estava zerado não vira crédito)."""
+    pontos = 0
+    for peso in pesos:
+        pontos = max(0, pontos + peso)
+    return pontos
 
 
 def calcular_punicao_aplicavel(punicoes: Sequence[Punicao], pontos: int) -> Optional[Punicao]:
