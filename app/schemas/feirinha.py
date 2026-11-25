@@ -118,3 +118,9 @@ class ExtratoAluno(BaseModel):
     gasto: int
     saldo: int
     compras: list[CompraExtrato]
+
+
+class ExtratoTurma(BaseModel):
+    escola_nome: str
+    turma: str
+    alunos: list[ExtratoAluno]

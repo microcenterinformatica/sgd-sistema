@@ -4,7 +4,10 @@ from datetime import timedelta
 
 from sqlmodel import select
 
+from app.models.atribuicao import Atribuicao
+from app.models.disciplina import Disciplina
 from app.models.feirinha import CartaoAluno, TransacaoVeracoin
+from app.models.professor import Professor
 from app.models.registro_disciplinar import RegistroDisciplinar
 from app.models.usuario import PapelUsuario
 
@@ -243,3 +246,56 @@ def test_extrato_e_busca_por_nome(client, fabrica):
     _, _, _, _, h_b, _ = _preparar(client, fabrica)
     assert client.get(f"/feirinha/extrato/{aluno.id}", headers=h_b).status_code == 404
     assert all(a["aluno_id"] != aluno.id for a in client.get(f"/feirinha/alunos?busca={aluno.nome}", headers=h_b).json())
+
+
+def test_extrato_da_turma_igual_ao_individual(client, fabrica, session):
+    escola, turma, _, aluno, h, token = _preparar(client, fabrica, veracoins=45)
+    sem_compras = fabrica.aluno(escola, turma, veracoins=7)
+    negativo = fabrica.aluno(escola, turma)
+    session.add(RegistroDisciplinar(aluno_id=negativo.id, tipo="infracao", descricao="Regra", peso=4))
+    session.commit()
+    fabrica.aluno(escola, fabrica.turma(escola, "1B"), veracoins=99)
+    _debitar(client, h, token, 5, descricao="Pipoca")
+    _debitar(client, h, token, 8)
+    desfeita = _debitar(client, h, token, 6).json()["transacao_id"]
+    client.post(f"/feirinha/estorno/{desfeita}", headers=h)
+
+    r = client.get(f"/feirinha/extrato-turma?turma_id={turma.id}", headers=h)
+    assert r.status_code == 200, r.text
+    corpo = r.json()
+    assert (corpo["escola_nome"], corpo["turma"]) == (escola.nome, "5A")
+    por_id = {a["aluno_id"]: a for a in corpo["alunos"]}
+    assert set(por_id) == {aluno.id, sem_compras.id, negativo.id}  # só a turma pedida
+
+    totais = {i: (a["acumulado"], a["gasto"], a["saldo"], len(a["compras"])) for i, a in por_id.items()}
+    assert totais[aluno.id] == (45, 13, 32, 3)
+    assert totais[sem_compras.id] == (7, 0, 7, 0)
+    assert totais[negativo.id] == (-4, 0, 0, 0)
+    for aluno_id, linha in por_id.items():
+        assert client.get(f"/feirinha/extrato/{aluno_id}", headers=h).json() == linha
+
+
+def test_extrato_da_turma_respeita_acesso(client, fabrica, session):
+    escola, turma, _, _, _, _ = _preparar(client, fabrica)
+    outra_turma = fabrica.turma(escola, "1B")
+    usuario = fabrica.usuario(escola, papel=PapelUsuario.professor)
+    h = fabrica.headers(usuario)
+    url = "/feirinha/extrato-turma?turma_id="
+    assert client.get(f"{url}{turma.id}", headers=h).status_code == 403
+
+    professor = Professor(escola_id=escola.id, nome="Prof", usuario_id=usuario.id)
+    disciplina = Disciplina(escola_id=escola.id, nome="Matemática")
+    session.add_all([professor, disciplina])
+    session.commit()
+    session.add(
+        Atribuicao(escola_id=escola.id, professor_id=professor.id, disciplina_id=disciplina.id, turma=turma.nome)
+    )
+    session.commit()
+    assert client.get(f"{url}{turma.id}", headers=h).status_code == 200
+    assert client.get(f"{url}{outra_turma.id}", headers=h).status_code == 403
+
+    h_coord = fabrica.headers(fabrica.usuario(escola, papel=PapelUsuario.coordenacao))
+    assert client.get(f"{url}{outra_turma.id}", headers=h_coord).json()["alunos"] == []
+    h_outra_escola = fabrica.headers(fabrica.usuario(fabrica.escola()))
+    assert client.get(f"{url}{turma.id}", headers=h_outra_escola).status_code == 404
+    assert client.get(f"{url}{turma.id}").status_code == 401

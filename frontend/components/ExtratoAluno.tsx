@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import { ExtratoAluno as Extrato, formatarNumeroCartao } from "@/lib/feirinha";
+import { CompraExtrato, ExtratoAluno as Extrato, formatarNumeroCartao } from "@/lib/feirinha";
 
-function formatarDataHora(iso: string): string {
+export function formatarDataHora(iso: string): string {
   // Backend grava em UTC sem fuso.
   return new Date(iso + "Z").toLocaleString("pt-BR", {
     day: "2-digit",
@@ -20,6 +20,32 @@ function Quadro({ rotulo, valor, destaque }: { rotulo: string; valor: number; de
       <p className={`text-xs uppercase tracking-wide ${destaque ? "text-[#C0C6CE]" : "text-slate-500"}`}>{rotulo}</p>
       <p className={`text-3xl font-extrabold ${destaque ? "text-[#E8C766]" : "text-slate-800"}`}>{valor}</p>
     </div>
+  );
+}
+
+export function ComprasLista({ compras }: { compras: CompraExtrato[] }) {
+  return compras.length === 0 ? (
+    <p className="text-sm text-slate-500">Nenhuma compra ainda.</p>
+  ) : (
+    <ul className="divide-y rounded-xl border bg-white">
+      {compras.map((c) => (
+        <li key={c.transacao_id} className="flex items-center justify-between gap-3 px-3 py-2">
+          <div className="min-w-0">
+            <p className={`text-sm truncate ${c.estornado ? "line-through text-slate-400" : "text-slate-800"}`}>
+              {c.descricao || "Compra"}
+            </p>
+            <p className="text-xs text-slate-500 truncate">
+              {formatarDataHora(c.criado_em)}
+              {c.operador_nome ? ` · ${c.operador_nome}` : ""}
+              {c.estornado ? " · desfeita" : ""}
+            </p>
+          </div>
+          <span className={`text-sm font-semibold shrink-0 ${c.estornado ? "text-slate-400 line-through" : "text-red-700"}`}>
+            −{c.valor}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -64,29 +90,7 @@ export function ExtratoAluno({ alunoId }: { alunoId: number }) {
 
       <div>
         <h3 className="text-sm font-semibold text-slate-700 mb-1">Compras na feirinha</h3>
-        {dados.compras.length === 0 ? (
-          <p className="text-sm text-slate-500">Nenhuma compra ainda.</p>
-        ) : (
-          <ul className="divide-y rounded-xl border bg-white">
-            {dados.compras.map((c) => (
-              <li key={c.transacao_id} className="flex items-center justify-between gap-3 px-3 py-2">
-                <div className="min-w-0">
-                  <p className={`text-sm truncate ${c.estornado ? "line-through text-slate-400" : "text-slate-800"}`}>
-                    {c.descricao || "Compra"}
-                  </p>
-                  <p className="text-xs text-slate-500 truncate">
-                    {formatarDataHora(c.criado_em)}
-                    {c.operador_nome ? ` · ${c.operador_nome}` : ""}
-                    {c.estornado ? " · desfeita" : ""}
-                  </p>
-                </div>
-                <span className={`text-sm font-semibold shrink-0 ${c.estornado ? "text-slate-400 line-through" : "text-red-700"}`}>
-                  −{c.valor}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ComprasLista compras={dados.compras} />
       </div>
     </div>
   );

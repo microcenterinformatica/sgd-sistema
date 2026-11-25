@@ -29,6 +29,7 @@ from app.schemas.feirinha import (
     AlunoBusca,
     CompraExtrato,
     ExtratoAluno,
+    ExtratoTurma,
     CartaoFeirinha,
     CartaoImpressao,
     CartaoStatusAluno,
@@ -132,13 +133,77 @@ def gasto_liquido_do_aluno(session: Session, aluno_id: int) -> int:
     return somas.get(TipoTransacaoVeracoin.debito.value, 0) - somas.get(TipoTransacaoVeracoin.estorno.value, 0)
 
 
+def _acumulado(patrimonio: float) -> int:
+    # +1e-9: a pontuação vem arredondada em 2 casas; evita 9.999999 virar 9.
+    return math.floor(patrimonio + 1e-9)
+
+
+def _saldo_disponivel(patrimonio: float, gasto: int) -> int:
+    return max(_acumulado(patrimonio) - gasto, 0)
+
+
 def calcular_saldo(session: Session, escola_id: int, aluno_id: int) -> tuple[float, int, int]:
     """Retorna (patrimônio, gasto líquido, saldo disponível >= 0)."""
     patrimonio = patrimonio_do_aluno(session, escola_id, aluno_id)
     gasto = gasto_liquido_do_aluno(session, aluno_id)
-    # +1e-9: a pontuação vem arredondada em 2 casas; evita 9.999999 virar 9.
-    saldo = math.floor(patrimonio + 1e-9) - gasto
-    return patrimonio, gasto, max(saldo, 0)
+    return patrimonio, gasto, _saldo_disponivel(patrimonio, gasto)
+
+
+def _montar_extratos(session: Session, escola_id: int, alunos: list[Aluno]) -> list[ExtratoAluno]:
+    """Extrato de um ou vários alunos, com uma consulta por tabela (não uma por aluno)."""
+    ids = [a.id for a in alunos] or [0]
+    patrimonios = {i.aluno_id: i.pontuacao for i in _montar_ranking(session, escola_id)}
+    numeros = {
+        c.aluno_id: c.numero
+        for c in session.exec(
+            select(CartaoAluno).where(CartaoAluno.aluno_id.in_(ids), CartaoAluno.ativo == True)  # noqa: E712
+        ).all()
+    }
+    transacoes = session.exec(
+        select(TransacaoVeracoin)
+        .where(TransacaoVeracoin.escola_id == escola_id, TransacaoVeracoin.aluno_id.in_(ids))
+        .order_by(TransacaoVeracoin.criado_em.desc(), TransacaoVeracoin.id.desc())
+    ).all()
+    estornados = {t.estorno_de_id for t in transacoes if t.tipo == TipoTransacaoVeracoin.estorno}
+    operadores = {
+        u.id: u.nome
+        for u in session.exec(select(Usuario).where(Usuario.id.in_({t.operador_id for t in transacoes} or {0}))).all()
+    }
+    por_aluno: dict[int, list[TransacaoVeracoin]] = {}
+    for t in transacoes:
+        por_aluno.setdefault(t.aluno_id, []).append(t)
+
+    extratos = []
+    for aluno in alunos:
+        lancamentos = por_aluno.get(aluno.id, [])
+        debitos = [t for t in lancamentos if t.tipo == TipoTransacaoVeracoin.debito]
+        gasto = sum(t.valor for t in debitos) - sum(
+            t.valor for t in lancamentos if t.tipo == TipoTransacaoVeracoin.estorno
+        )
+        patrimonio = patrimonios.get(aluno.id, 0.0)
+        extratos.append(
+            ExtratoAluno(
+                aluno_id=aluno.id,
+                nome=aluno.nome,
+                turma=aluno.turma,
+                numero_cartao=numeros.get(aluno.id),
+                acumulado=_acumulado(patrimonio),
+                gasto=gasto,
+                saldo=_saldo_disponivel(patrimonio, gasto),
+                compras=[
+                    CompraExtrato(
+                        transacao_id=d.id,
+                        criado_em=d.criado_em,
+                        valor=d.valor,
+                        descricao=d.descricao,
+                        operador_nome=operadores.get(d.operador_id),
+                        estornado=d.id in estornados,
+                    )
+                    for d in debitos
+                ],
+            )
+        )
+    return extratos
 
 
 def _resultado(session: Session, transacao: TransacaoVeracoin, repetida: bool = False) -> TransacaoResultado:
@@ -523,45 +588,17 @@ def extrato(aluno_id: int, session: SessionDep, usuario_atual: CurrentUserDep):
     if aluno is None or aluno.escola_id != usuario_atual.escola_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aluno não encontrado.")
 
-    patrimonio, gasto, saldo = calcular_saldo(session, aluno.escola_id, aluno.id)
-    cartao = session.exec(
-        select(CartaoAluno).where(CartaoAluno.aluno_id == aluno.id, CartaoAluno.ativo == True)  # noqa: E712
-    ).first()
+    return _montar_extratos(session, aluno.escola_id, [aluno])[0]
 
-    debitos = session.exec(
-        select(TransacaoVeracoin)
-        .where(TransacaoVeracoin.aluno_id == aluno.id, TransacaoVeracoin.tipo == TipoTransacaoVeracoin.debito)
-        .order_by(TransacaoVeracoin.criado_em.desc(), TransacaoVeracoin.id.desc())
-    ).all()
-    estornados = set(
-        session.exec(
-            select(TransacaoVeracoin.estorno_de_id).where(
-                TransacaoVeracoin.estorno_de_id.in_([d.id for d in debitos] or [0])
-            )
-        ).all()
-    )
-    operadores = {
-        u.id: u.nome
-        for u in session.exec(select(Usuario).where(Usuario.id.in_({d.operador_id for d in debitos} or {0}))).all()
-    }
 
-    return ExtratoAluno(
-        aluno_id=aluno.id,
-        nome=aluno.nome,
-        turma=aluno.turma,
-        numero_cartao=cartao.numero if cartao else None,
-        acumulado=math.floor(patrimonio + 1e-9),
-        gasto=gasto,
-        saldo=saldo,
-        compras=[
-            CompraExtrato(
-                transacao_id=d.id,
-                criado_em=d.criado_em,
-                valor=d.valor,
-                descricao=d.descricao,
-                operador_nome=operadores.get(d.operador_id),
-                estornado=d.id in estornados,
-            )
-            for d in debitos
-        ],
+@router.get("/feirinha/extrato-turma", response_model=ExtratoTurma)
+def extrato_da_turma(turma_id: int, session: SessionDep, usuario_atual: CurrentUserDep):
+    """Extrato de todos os alunos da turma. Professor só vê as turmas dele (mesma regra dos Cartões)."""
+    turma = _turma_da_escola(session, turma_id, usuario_atual)
+    escola = session.get(Escola, usuario_atual.escola_id)
+    alunos = _alunos_da_turma(session, usuario_atual.escola_id, turma.nome)
+    return ExtratoTurma(
+        escola_nome=escola.nome if escola else "",
+        turma=turma.nome,
+        alunos=_montar_extratos(session, usuario_atual.escola_id, alunos),
     )

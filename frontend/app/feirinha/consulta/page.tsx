@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Scanner, type IDetectedBarcode } from "@yudiel/react-qr-scanner";
-import { ScanLine, Search, X } from "lucide-react";
+import { ListOrdered, ScanLine, Search, X } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { ExtratoAluno } from "@/components/ExtratoAluno";
+import { ExtratoTurma } from "@/components/ExtratoTurma";
 import { MoedaVeracom } from "@/components/MoedaVeracom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,7 +13,13 @@ import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/api";
 import { AlunoBusca, CartaoFeirinha, PREFIXO_QR, mensagemCamera } from "@/lib/feirinha";
 
-type Modo = "cartao" | "nome";
+type Modo = "cartao" | "nome" | "turma";
+
+const MODOS = [
+  { valor: "cartao", rotulo: "Ler cartão", Icone: ScanLine },
+  { valor: "nome", rotulo: "Buscar por nome", Icone: Search },
+  { valor: "turma", rotulo: "Lista da turma", Icone: ListOrdered },
+] as const;
 
 function Consulta() {
   const [modo, setModo] = useState<Modo>("cartao");
@@ -76,7 +83,7 @@ function Consulta() {
   }
 
   return (
-    <div className="p-4 max-w-md mx-auto space-y-4">
+    <div className={`p-4 mx-auto space-y-4 ${modo === "turma" && alunoId === null ? "max-w-2xl" : "max-w-md"}`}>
       <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
         <MoedaVeracom size="md" /> Consulta de Saldo
       </h1>
@@ -103,13 +110,17 @@ function Consulta() {
         </>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant={modo === "cartao" ? "default" : "outline"} className="h-12" onClick={() => setModo("cartao")}>
-              <ScanLine className="size-4 mr-1" /> Ler cartão
-            </Button>
-            <Button variant={modo === "nome" ? "default" : "outline"} className="h-12" onClick={() => setModo("nome")}>
-              <Search className="size-4 mr-1" /> Buscar por nome
-            </Button>
+          <div className="grid grid-cols-3 gap-2">
+            {MODOS.map(({ valor, rotulo, Icone }) => (
+              <Button
+                key={valor}
+                variant={modo === valor ? "default" : "outline"}
+                className="h-14 flex-col gap-1 px-1 text-xs sm:text-sm"
+                onClick={() => setModo(valor)}
+              >
+                <Icone className="size-4" /> {rotulo}
+              </Button>
+            ))}
           </div>
 
           {modo === "cartao" ? (
@@ -154,6 +165,8 @@ function Consulta() {
                 </form>
               </CardContent>
             </Card>
+          ) : modo === "turma" ? (
+            <ExtratoTurma />
           ) : (
             <Card>
               <CardContent className="space-y-3 pt-4">

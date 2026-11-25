@@ -131,6 +131,12 @@ export interface ExtratoAluno {
   compras: CompraExtrato[];
 }
 
+export interface ExtratoTurma {
+  escola_nome: string;
+  turma: string;
+  alunos: ExtratoAluno[];
+}
+
 /** Texto amigável para falhas da câmera do leitor de QR. */
 export function mensagemCamera(kind: string): string {
   switch (kind) {
