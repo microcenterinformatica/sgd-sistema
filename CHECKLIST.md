@@ -13,14 +13,13 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 - [ ] Tornar privado
 - [ ] Push de teste + conferir deploy
 
-### PDF da turma no Extrato de Veracoins — 25/11
-**Objetivo:** imprimir o resumo da turma e os extratos individuais de todos
-- [x] Combinar com o usuário (os dois PDFs)
-- [x] Backend (extratos da turma, sem migração) + testes
-- [x] Frontend (dois botões e PDFs)
-- [x] Testar local
+### Certificado de aluno mais disciplinado — 25/11
+**Objetivo:** PDF com certificado do 1º ao 5º da turma (total de Veracoins), no Patrimônio Disciplinar
+- [x] Combinar critério, turma, período e assinaturas com o usuário
+- [x] Frontend (botão, conferência dos nomes e PDF)
+- [x] Testar local (empates, nomes longos)
 - [x] Aprovação do usuário + commit
-- [ ] Push (Render + Vercel) + conferir em produção (sem migração)
+- [ ] Push (Vercel) + conferir em produção
 
 <!--
 ### <Nome da mudança> — <data>
@@ -64,7 +63,7 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 - [x] Aluno com histórico não pode ser excluído; registros individuais podem
 
 **Disciplina** 🚀
-- [x] Extrato de Veracoins em Consultas (conta do aluno, turma toda e PDF) (25/11, `55dfcd2`)
+- [x] Extrato de Veracoins em Consultas: conta do aluno, turma toda e PDFs (25/11, `55dfcd2`, `d6a5dbf`)
 - [x] Lista da turma na Consulta de Saldo, com impressão A4 (25/11, `2c48be9`)
 - [x] Verso novo do cartão do 5A (escola, Prefeitura e equipe) e logo Veracoin na frente (25/11, `99f9c06`)
 - [x] Só o admin altera/exclui mérito, com aviso de saldo negativo na feirinha (25/11, `b5d8ed3`)

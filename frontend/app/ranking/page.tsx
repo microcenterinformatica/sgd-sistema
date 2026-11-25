@@ -5,10 +5,12 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Award, Download, MinusCircle } from "lucide-react";
+import { Award, Download, Medal, MinusCircle } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError, baixarArquivo } from "@/lib/api";
 import { ConfiguracaoRanking, Professor, RankingItem, RegistroMeritoTurmaResponse } from "@/lib/types";
+import { ItemComPosicao, ULTIMA_COLOCACAO_PREMIADA, ordenarComPosicaoCompartilhada, premiados } from "@/lib/ranking";
+import { CertificadosDialog } from "@/components/CertificadosDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { MoedaVeracom } from "@/components/MoedaVeracom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -223,27 +225,6 @@ function detalhe(item: RankingItem): string {
   return `mérito ${item.total_merito} · ocorrências ${item.total_infracao} · ${item.faltas_nao_justificadas} falta(s) · ${item.atividades_nao_entregues} não entregue(s)`;
 }
 
-interface ItemComPosicao {
-  item: RankingItem;
-  posicao: number;
-}
-
-/** Ranking por posição compartilhada: pontuação igual = mesma posição, próxima pula (1º, 1º, 3º). */
-function ordenarComPosicaoCompartilhada(lista: RankingItem[]): ItemComPosicao[] {
-  const ordenada = [...lista].sort((a, b) => b.pontuacao - a.pontuacao);
-  const resultado: ItemComPosicao[] = [];
-  let posicaoAtual = 0;
-  let pontuacaoAnterior: number | null = null;
-  ordenada.forEach((item, idx) => {
-    if (pontuacaoAnterior === null || item.pontuacao !== pontuacaoAnterior) {
-      posicaoAtual = idx + 1;
-      pontuacaoAnterior = item.pontuacao;
-    }
-    resultado.push({ item, posicao: posicaoAtual });
-  });
-  return resultado;
-}
-
 function LinhaRanking({ item, posicao, nomeMoeda }: { item: RankingItem; posicao: number; nomeMoeda: string }) {
   return (
     <div className="flex items-center justify-between p-4">
@@ -273,6 +254,7 @@ function RankingContent() {
   const [nomeMoeda, setNomeMoeda] = useState("Veracom");
   const [topSelecionado, setTopSelecionado] = useState("todas");
   const [gerandoTop, setGerandoTop] = useState(false);
+  const [certificadosAbertos, setCertificadosAbertos] = useState(false);
 
   function carregarRanking() {
     api
@@ -294,6 +276,8 @@ function RankingContent() {
   }, []);
 
   const turmaSelecionada = visao === "turma" && turmaFiltro !== "todas" && turmaFiltro !== "sem-turma" ? turmaFiltro : null;
+
+  const premiadosDaTurma = turmaSelecionada ? premiados((itens ?? []).filter((i) => i.turma === turmaSelecionada)) : [];
 
   async function baixarListaTop() {
     if (!turmaSelecionada) return;
@@ -436,6 +420,10 @@ function RankingContent() {
                   <Download />
                   {gerandoTop ? "Gerando..." : "Gerar lista em PDF"}
                 </Button>
+                <Button variant="outline" size="sm" disabled={premiadosDaTurma.length === 0} onClick={() => setCertificadosAbertos(true)}>
+                  <Medal />
+                  Certificados (1º ao {ULTIMA_COLOCACAO_PREMIADA}º)
+                </Button>
               </div>
             )}
           </div>
@@ -451,6 +439,15 @@ function RankingContent() {
           professores={professores}
           onRegistrado={carregarRanking}
           nomeMoeda={nomeMoeda}
+        />
+      )}
+
+      {turmaSelecionada && certificadosAbertos && (
+        <CertificadosDialog
+          turma={turmaSelecionada}
+          premiados={premiadosDaTurma}
+          nomeMoeda={nomeMoeda}
+          onFechar={() => setCertificadosAbertos(false)}
         />
       )}
 
