@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Optional
 
 from sqlmodel import SQLModel
@@ -12,6 +13,27 @@ class RankingItem(SQLModel):
     faltas_nao_justificadas: int
     atividades_nao_entregues: int
     pontuacao: float
+
+
+class ExtratoPontuacaoItem(SQLModel):
+    data: date
+    descricao: str
+    observacao: Optional[str] = None
+    professor_nome: Optional[str] = None
+    # Quanto o lançamento soma (+) ou desconta (−) na pontuação.
+    valor: float
+
+
+class ExtratoPontuacao(RankingItem):
+    escola_nome: str
+    matricula: str
+    nome_moeda: str
+    peso_falta: float
+    peso_nao_entrega: float
+    meritos: list[ExtratoPontuacaoItem]
+    ocorrencias: list[ExtratoPontuacaoItem]
+    faltas: list[ExtratoPontuacaoItem]
+    nao_entregues: list[ExtratoPontuacaoItem]
 
 
 class ConfiguracaoRankingRead(SQLModel):

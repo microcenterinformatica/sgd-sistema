@@ -13,12 +13,12 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 - [ ] Tornar privado
 - [ ] Push de teste + conferir deploy
 
-### Lista da turma na Consulta de Saldo — 25/11
-**Objetivo:** saldo, gastos e compras de todos os alunos da turma, com impressão (professor só vê as turmas dele)
-- [x] Combinar tela e acesso com o usuário
-- [x] Backend (extrato da turma, sem migração) + testes
-- [x] Frontend (botão, lista e impressão A4)
-- [x] Testar local (celular e impressão)
+### Extrato de Veracoins em Consultas — 25/11
+**Objetivo:** mostrar a conta que forma os Veracoins (aluno com lista por tipo e PDF; turma toda lado a lado)
+- [x] Combinar tela, turma toda e PDF com o usuário
+- [x] Backend (extrato, sem migração) + testes
+- [x] Frontend (aba, turma toda e PDF)
+- [x] Testar local
 - [x] Aprovação do usuário + commit
 - [ ] Push (Render + Vercel) + conferir em produção (sem migração)
 
@@ -64,6 +64,7 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 - [x] Aluno com histórico não pode ser excluído; registros individuais podem
 
 **Disciplina** 🚀
+- [x] Lista da turma na Consulta de Saldo, com impressão A4 (25/11, `2c48be9`)
 - [x] Verso novo do cartão do 5A (escola, Prefeitura e equipe) e logo Veracoin na frente (25/11, `99f9c06`)
 - [x] Só o admin altera/exclui mérito, com aviso de saldo negativo na feirinha (25/11, `b5d8ed3`)
 - [x] Excluir/editar registro não infla mais pontos; 14 alunos acertados e conferidos em produção (25/11, `7b7cbf8`)

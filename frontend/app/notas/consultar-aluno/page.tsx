@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-import { BookOpen, CalendarCheck, ClipboardList, Download, FileText, ListChecks, Lock } from "lucide-react";
+import { BookOpen, CalendarCheck, ClipboardList, Coins, Download, FileText, ListChecks, Lock } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError, baixarArquivo } from "@/lib/api";
 import { calcularStatus } from "@/lib/conduta";
+import { pluralMoeda } from "@/lib/extrato-veracoins";
 import {
   Aluno,
   AlunoResumo,
@@ -16,6 +17,7 @@ import {
   AtividadeResumoItem,
   BoletimAluno,
   BoletimAnualAluno,
+  ConfiguracaoRanking,
   ConteudoAulaRead,
   Escola,
   FaltaRead,
@@ -35,6 +37,7 @@ import { useAtribuicoes } from "@/lib/useAtribuicoes";
 import { PageHeader } from "@/components/PageHeader";
 import { BoletimTurmaCard } from "@/components/BoletimTurmaCard";
 import { AtividadesResumoCard } from "@/components/AtividadesResumoCard";
+import { ExtratoVeracoins } from "@/components/ExtratoVeracoins";
 import { PendenciasAtividadesCard } from "@/components/PendenciasAtividadesCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,7 +57,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-type Aba = "periodo" | "frequencia" | "atividades" | "historico_disciplinar" | "conteudo";
+type Aba = "periodo" | "frequencia" | "atividades" | "historico_disciplinar" | "conteudo" | "extrato";
 
 const ABAS: { value: Aba; label: string; icon: typeof FileText; descricao: string }[] = [
   { value: "conteudo", label: "Conteúdo", icon: BookOpen, descricao: "O que foi lecionado em cada aula da disciplina." },
@@ -65,6 +68,13 @@ const ABAS: { value: Aba; label: string; icon: typeof FileText; descricao: strin
     label: "Histórico Disciplinar",
     icon: ClipboardList,
     descricao: "Veja na tela a indisciplina e o mérito do aluno (ou da turma toda) e, se quiser, baixe o relatório em PDF pra enviar ao responsável.",
+  },
+  {
+    value: "extrato",
+    // O nome da moeda é configurável por escola; o rótulo final é montado na tela.
+    label: "Extrato",
+    icon: Coins,
+    descricao: "A conta que forma o total de cada aluno, com cada mérito, ocorrência, falta e atividade não entregue. Escolha um aluno ou a turma toda.",
   },
   {
     value: "periodo",
@@ -543,6 +553,7 @@ function ConsultarAlunoContent() {
   const [boletimAnual, setBoletimAnual] = useState<BoletimAnualAluno | null>(null);
   const [carregandoBoletimAnual, setCarregandoBoletimAnual] = useState(false);
   const [escolaNome, setEscolaNome] = useState("");
+  const [nomeMoeda, setNomeMoeda] = useState("");
   const [anoLetivoAtual, setAnoLetivoAtual] = useState<number | null>(null);
   const [modeloBoletim, setModeloBoletim] = useState<"grade" | "detalhado">("grade");
   const [faltasDetalhe, setFaltasDetalhe] = useState<FaltaRead[] | null>(null);
@@ -570,6 +581,7 @@ function ConsultarAlunoContent() {
   useEffect(() => {
     api.get<Punicao[]>("/punicoes").then(setPunicoes).catch(() => {});
     api.get<Escola>("/escola").then((e) => setEscolaNome(e.nome)).catch(() => {});
+    api.get<ConfiguracaoRanking>("/configuracao-ranking").then((c) => setNomeMoeda(c.nome_moeda)).catch(() => {});
     api
       .get<AnoLetivo[]>("/anos-letivos")
       .then((lista) => {
@@ -925,7 +937,7 @@ function ConsultarAlunoContent() {
 
   const modoTodasDisciplinas = aba === "conteudo" && todasDisciplinas;
   const mostrarTurma = !modoTodasDisciplinas;
-  const mostrarDisciplina = aba !== "historico_disciplinar";
+  const mostrarDisciplina = aba !== "historico_disciplinar" && aba !== "extrato";
   const mostrarAluno = aba !== "conteudo";
   const mostrarPeriodo =
     aba === "periodo" || aba === "frequencia" || aba === "atividades" || aba === "conteudo" || aba === "historico_disciplinar";
@@ -940,7 +952,7 @@ function ConsultarAlunoContent() {
           {ABAS.map(({ value, label, icon: Icon }) => (
             <TabsTrigger key={value} value={value}>
               <Icon />
-              {label}
+              {value === "extrato" && nomeMoeda ? `Extrato de ${pluralMoeda(nomeMoeda)}` : label}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -1128,6 +1140,8 @@ function ConsultarAlunoContent() {
                 </p>
               )}
             </div>
+          ) : aba === "extrato" ? (
+            alunoId ? null : <p className="text-sm text-muted-foreground">Selecione um aluno ou &quot;Todos os alunos da turma&quot;.</p>
           ) : aba === "conteudo" ? (
             <div className="space-y-3">
               <Button onClick={consultar} disabled={consultarDesabilitado}>
@@ -1429,6 +1443,8 @@ function ConsultarAlunoContent() {
           </CardContent>
         </Card>
       )}
+
+      {aba === "extrato" && <ExtratoVeracoins turma={turma} alunoId={alunoId} onSelecionar={selecionarAluno} />}
 
       {aba === "conteudo" && !todasDisciplinas && conteudos && <ConteudoCard conteudos={conteudos} />}
 

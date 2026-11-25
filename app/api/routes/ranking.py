@@ -5,15 +5,25 @@ from fastapi.responses import Response
 from sqlmodel import func, select
 
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
+from app.core.permissoes import verificar_permissao_turma
+from app.core.tempo import para_horario_local
 from app.models.aluno import Aluno
 from app.models.atividade import Atividade
 from app.models.configuracao_ranking import ConfiguracaoRanking
+from app.models.disciplina import Disciplina
 from app.models.escola import Escola
 from app.models.lancamento import Lancamento
+from app.models.professor import Professor
 from app.models.registro_disciplinar import RegistroDisciplinar, TipoRegistro
 from app.models.registro_falta import RegistroFalta
-from app.models.usuario import PapelUsuario
-from app.schemas.ranking import ConfiguracaoRankingRead, ConfiguracaoRankingUpdate, RankingItem
+from app.models.usuario import PapelUsuario, Usuario
+from app.schemas.ranking import (
+    ConfiguracaoRankingRead,
+    ConfiguracaoRankingUpdate,
+    ExtratoPontuacao,
+    ExtratoPontuacaoItem,
+    RankingItem,
+)
 from app.services.ranking_pdf import gerar_pdf_ranking_turma
 
 router = APIRouter(tags=["ranking"])
@@ -139,6 +149,98 @@ def _ordenar_com_posicao_compartilhada(itens: list[RankingItem]) -> list[tuple[R
 @router.get("/ranking", response_model=list[RankingItem])
 def calcular_ranking(session: SessionDep, usuario_atual: CurrentUserDep):
     return _montar_ranking(session, usuario_atual.escola_id)
+
+
+@router.get("/ranking/extrato/{aluno_id}", response_model=ExtratoPontuacao)
+def extrato_da_pontuacao(aluno_id: int, session: SessionDep, usuario_atual: CurrentUserDep):
+    """A conta que forma a pontuação do aluno, lançamento por lançamento. Usa os
+    mesmos filtros de `_montar_ranking`: a soma dos itens é a pontuação. Professor
+    só vê alunos das turmas dele."""
+    escola_id = usuario_atual.escola_id
+    aluno = session.get(Aluno, aluno_id)
+    if aluno is None or aluno.escola_id != escola_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aluno não encontrado.")
+    verificar_permissao_turma(session, usuario_atual, aluno.turma)
+
+    resumo = next(i for i in _montar_ranking(session, escola_id) if i.aluno_id == aluno_id)
+    config = session.get(ConfiguracaoRanking, escola_id) or ConfiguracaoRanking(escola_id=escola_id)
+    escola = session.get(Escola, escola_id)
+    professores = dict(session.exec(select(Professor.id, Professor.nome).where(Professor.escola_id == escola_id)).all())
+    usuarios = dict(session.exec(select(Usuario.id, Usuario.nome).where(Usuario.escola_id == escola_id)).all())
+    disciplinas = dict(
+        session.exec(select(Disciplina.id, Disciplina.nome).where(Disciplina.escola_id == escola_id)).all()
+    )
+
+    registros = session.exec(
+        select(RegistroDisciplinar)
+        .where(RegistroDisciplinar.aluno_id == aluno_id)
+        .order_by(RegistroDisciplinar.data_hora.desc(), RegistroDisciplinar.id.desc())
+    ).all()
+
+    def itens_do_tipo(tipo: TipoRegistro) -> list[ExtratoPontuacaoItem]:
+        return [
+            ExtratoPontuacaoItem(
+                data=para_horario_local(r.data_hora).date(),
+                descricao=r.descricao,
+                observacao=r.observacao,
+                professor_nome=professores.get(r.professor_id) or usuarios.get(r.registrado_por_usuario_id),
+                # Infração é gravada com peso positivo e mérito com negativo; na pontuação é o contrário.
+                valor=-r.peso,
+            )
+            for r in registros
+            if r.tipo == tipo
+        ]
+
+    faltas = session.exec(
+        select(RegistroFalta)
+        .where(
+            RegistroFalta.escola_id == escola_id,
+            RegistroFalta.aluno_id == aluno_id,
+            RegistroFalta.justificada == False,  # noqa: E712
+        )
+        .order_by(RegistroFalta.data.desc(), RegistroFalta.id.desc())
+    ).all()
+    atividades = session.exec(
+        select(Atividade)
+        .join(Lancamento, Lancamento.atividade_id == Atividade.id)
+        .where(
+            Lancamento.aluno_id == aluno_id,
+            Lancamento.fez == False,  # noqa: E712
+            Atividade.ativo == True,  # noqa: E712
+        )
+    ).all()
+
+    return ExtratoPontuacao(
+        **resumo.model_dump(),
+        escola_nome=escola.nome if escola else "",
+        matricula=aluno.matricula,
+        nome_moeda=config.nome_moeda,
+        peso_falta=config.peso_falta,
+        peso_nao_entrega=config.peso_nao_entrega,
+        meritos=itens_do_tipo(TipoRegistro.merito),
+        ocorrencias=itens_do_tipo(TipoRegistro.infracao),
+        faltas=[
+            ExtratoPontuacaoItem(
+                data=f.data,
+                descricao=disciplinas.get(f.disciplina_id, "Falta do dia"),
+                observacao=f.observacao,
+                valor=-config.peso_falta,
+            )
+            for f in faltas
+        ],
+        nao_entregues=sorted(
+            (
+                ExtratoPontuacaoItem(
+                    data=a.data_entrega or a.data,
+                    descricao=f"{a.titulo} ({disciplinas[a.disciplina_id]})" if a.disciplina_id in disciplinas else a.titulo,
+                    valor=-config.peso_nao_entrega,
+                )
+                for a in atividades
+            ),
+            key=lambda i: i.data,
+            reverse=True,
+        ),
+    )
 
 
 @router.get("/ranking/relatorio-top-turma")
