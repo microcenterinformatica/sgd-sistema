@@ -219,9 +219,108 @@ function EditarInfracaoDialog({
   );
 }
 
+function EditarMeritoDialog({
+  alunoNome,
+  evento,
+  onOpenChange,
+  onEditado,
+}: {
+  alunoNome: string;
+  evento: EventoHistorico;
+  onOpenChange: (open: boolean) => void;
+  onEditado: () => void;
+}) {
+  const [valor, setValor] = useState(String(Math.abs(evento.peso)));
+  const [observacao, setObservacao] = useState(evento.observacao ?? "");
+  const [salvando, setSalvando] = useState(false);
+  // Preenchido quando o servidor avisa que o aluno já gastou na feirinha mais do que sobraria.
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  async function salvar() {
+    const pontos = Number(valor);
+    if (!Number.isInteger(pontos) || pontos <= 0) {
+      toast.error("Informe um valor inteiro maior que zero");
+      return;
+    }
+    setSalvando(true);
+    try {
+      await api.put(`/registros/${evento.registroId}/merito`, {
+        pontos_bonus: pontos,
+        observacao: observacao || null,
+        confirmar_saldo_negativo: aviso !== null,
+      });
+      onOpenChange(false);
+      onEditado();
+      toast.success("Mérito atualizado");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setAviso(err.message);
+      } else {
+        toast.error(err instanceof ApiError ? err.message : "Erro ao editar mérito");
+      }
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar mérito — {alunoNome}</DialogTitle>
+          <DialogDescription>
+            Corrija o valor ou a observação. Os pontos do aluno são refeitos pelo histórico.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="valor-merito">Valor do mérito</Label>
+            <Input
+              id="valor-merito"
+              type="number"
+              min={1}
+              step={1}
+              value={valor}
+              onChange={(e) => {
+                setValor(e.target.value);
+                setAviso(null);
+              }}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="observacao-merito">Observação (opcional)</Label>
+            <Textarea
+              id="observacao-merito"
+              rows={3}
+              value={observacao}
+              onChange={(e) => setObservacao(e.target.value)}
+            />
+          </div>
+          {aviso && (
+            <p role="alert" className="text-sm rounded-md border border-amber-300 bg-amber-50 text-amber-800 px-3 py-2">
+              {aviso} Deseja continuar mesmo assim?
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button variant={aviso ? "destructive" : "default"} onClick={salvar} disabled={salvando}>
+            {salvando ? "Salvando..." : aviso ? "Continuar mesmo assim" : "Salvar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function HistoricoContent() {
   const { user } = useAuth();
   const podeGerenciar = user?.papel === "admin_escola" || user?.papel === "coordenacao";
+  // Mérito (e recuperação automática) só o admin altera ou exclui; indisciplina, admin e coordenação.
+  const ehAdmin = user?.papel === "admin_escola";
+  const podeExcluir = (evento: EventoHistorico) => (evento.tipo === "infracao" ? podeGerenciar : ehAdmin);
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [punicoes, setPunicoes] = useState<Punicao[]>([]);
   const [registros, setRegistros] = useState<RegistroDisciplinar[]>([]);
@@ -235,6 +334,8 @@ function HistoricoContent() {
   const [visaoAgrupada, setVisaoAgrupada] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [editando, setEditando] = useState<{ aluno: Aluno; evento: EventoHistorico } | null>(null);
+  const [avisoExclusao, setAvisoExclusao] = useState<{ registroId: number; mensagem: string } | null>(null);
+  const [excluindo, setExcluindo] = useState(false);
 
   async function carregar() {
     try {
@@ -265,13 +366,21 @@ function HistoricoContent() {
     carregar();
   }, []);
 
-  async function excluirRegistro(id: number) {
+  async function excluirRegistro(id: number, confirmarSaldoNegativo = false) {
+    setExcluindo(true);
     try {
-      await api.delete(`/registros/${id}`);
+      await api.delete(`/registros/${id}${confirmarSaldoNegativo ? "?confirmar_saldo_negativo=true" : ""}`);
+      setAvisoExclusao(null);
       await carregar();
       toast.success("Registro excluído");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erro ao excluir registro");
+      if (err instanceof ApiError && err.status === 409) {
+        setAvisoExclusao({ registroId: id, mensagem: err.message });
+      } else {
+        toast.error(err instanceof ApiError ? err.message : "Erro ao excluir registro");
+      }
+    } finally {
+      setExcluindo(false);
     }
   }
 
@@ -518,12 +627,12 @@ function HistoricoContent() {
                             {evento.peso >= 0 ? `+${evento.peso}` : evento.peso}
                           </span>
                           <div className="flex flex-col items-stretch">
-                            {podeGerenciar && evento.tipo === "infracao" && evento.registroId !== undefined && (
+                            {((podeGerenciar && evento.tipo === "infracao") || (ehAdmin && evento.tipo === "merito")) && evento.registroId !== undefined && (
                               <Button variant="ghost" size="sm" className="w-full justify-center" onClick={() => setEditando({ aluno, evento })}>
                                 Editar
                               </Button>
                             )}
-                            {podeGerenciar && evento.registroId !== undefined && (
+                            {podeExcluir(evento) && evento.registroId !== undefined && (
                               <ConfirmDialog
                                 trigger={
                                   <Button variant="ghost" size="sm" className="w-full justify-center text-destructive">
@@ -548,7 +657,39 @@ function HistoricoContent() {
         })}
       </div>
 
-      {editando && (
+      {avisoExclusao && (
+        <Dialog open onOpenChange={(open) => !open && setAvisoExclusao(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Saldo da feirinha ficará negativo</DialogTitle>
+              <DialogDescription>{avisoExclusao.mensagem} Deseja excluir o mérito mesmo assim?</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAvisoExclusao(null)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => excluirRegistro(avisoExclusao.registroId, true)}
+                disabled={excluindo}
+              >
+                {excluindo ? "Aguarde..." : "Excluir mesmo assim"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {editando && editando.evento.tipo === "merito" && (
+        <EditarMeritoDialog
+          alunoNome={editando.aluno.nome}
+          evento={editando.evento}
+          onOpenChange={(open) => !open && setEditando(null)}
+          onEditado={carregar}
+        />
+      )}
+
+      {editando && editando.evento.tipo === "infracao" && (
         <EditarInfracaoDialog
           alunoNome={editando.aluno.nome}
           evento={editando.evento}

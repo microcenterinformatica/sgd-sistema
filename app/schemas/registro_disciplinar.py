@@ -40,6 +40,13 @@ class RegistroInfracaoUpdate(SQLModel):
     data_hora: datetime
 
 
+class RegistroMeritoUpdate(SQLModel):
+    pontos_bonus: int
+    observacao: Optional[str] = None
+    # O admin já viu o aviso de que o aluno gastou na feirinha mais do que sobra.
+    confirmar_saldo_negativo: bool = False
+
+
 class RegistroDisciplinarRead(SQLModel):
     id: int
     aluno_id: int

@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -5,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import func, select
 
 from app.api.deps import CurrentUserDep, SessionDep, require_roles
+from app.api.routes.feirinha import calcular_saldo
 from app.core.permissoes import verificar_permissao_turma
 from app.core.tempo import para_horario_local
 from app.models.aluno import Aluno
@@ -21,9 +23,11 @@ from app.schemas.registro_disciplinar import (
     RegistroMeritoCreate,
     RegistroMeritoTurmaCreate,
     RegistroMeritoTurmaResponse,
+    RegistroMeritoUpdate,
 )
 from app.services.pontuacao import (
     DESCRICAO_BONUS_BOM_COMPORTAMENTO,
+    DESCRICAO_RECUPERACAO_AUTOMATICA,
     aplicar_infracao,
     aplicar_merito,
     calcular_pontos_do_historico,
@@ -90,6 +94,39 @@ def _refazer_pontos(session: SessionDep, aluno: Aluno) -> None:
             .order_by(RegistroDisciplinar.data_hora, RegistroDisciplinar.id)
         ).all()
     )
+
+
+def _exigir_admin_para_merito(usuario: Usuario) -> None:
+    """Alterar ou excluir mérito é só do admin (decisão do usuário, 25/11/2026)."""
+    if usuario.papel != PapelUsuario.admin_escola:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Somente o administrador pode alterar ou excluir um mérito.",
+        )
+
+
+def _travar_aluno(session: SessionDep, aluno_id: int) -> Aluno:
+    """Mesma trava do débito da feirinha: evita que uma venda use o saldo
+    antigo enquanto o mérito está sendo alterado ou excluído."""
+    return session.exec(
+        select(Aluno).where(Aluno.id == aluno_id).with_for_update().execution_options(populate_existing=True)
+    ).one()
+
+
+def _avisar_se_saldo_negativo(session: SessionDep, aluno: Aluno, confirmado: bool) -> None:
+    """Chamar depois do flush. Se o aluno já gastou na feirinha mais do que
+    sobrou, desfaz tudo e devolve 409 até o admin confirmar."""
+    if confirmado:
+        return
+    patrimonio, gasto, _ = calcular_saldo(session, aluno.escola_id, aluno.id)
+    falta = gasto - math.floor(patrimonio + 1e-9)
+    if gasto > 0 and falta > 0:
+        nome = aluno.nome
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"{nome} já gastou {gasto} na feirinha e ficaria com saldo negativo de {falta}.",
+        )
 
 
 def _montar_read(registro: RegistroDisciplinar, professor_nome: Optional[str]) -> RegistroDisciplinarRead:
@@ -296,18 +333,68 @@ def editar_registro_infracao(
     )
 
 
+@router.put("/{registro_id}/merito", response_model=RegistroDisciplinarResponse)
+def editar_registro_merito(
+    registro_id: int, dados: RegistroMeritoUpdate, session: SessionDep, usuario_atual: CurrentUserDep
+):
+    _exigir_admin_para_merito(usuario_atual)
+    if dados.pontos_bonus <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O valor do mérito deve ser maior que zero")
+
+    registro = _get_registro_da_escola(session, registro_id, usuario_atual.escola_id)
+    if registro.tipo != TipoRegistro.merito or registro.descricao in (
+        *DESCRICOES_FORA_DA_PONTUACAO,
+        DESCRICAO_RECUPERACAO_AUTOMATICA,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Só é possível alterar o valor de um mérito individual"
+        )
+
+    aluno = _travar_aluno(session, registro.aluno_id)
+    diminuiu = dados.pontos_bonus < -registro.peso
+    registro.peso = -dados.pontos_bonus
+    registro.observacao = dados.observacao
+    session.add(registro)
+    session.flush()
+
+    if diminuiu:
+        _avisar_se_saldo_negativo(session, aluno, dados.confirmar_saldo_negativo)
+    _refazer_pontos(session, aluno)
+
+    professor_nome = _get_professor_nome(session, registro.professor_id, usuario_atual.escola_id, usuario_atual.nome)
+
+    session.add(aluno)
+    session.commit()
+    session.refresh(registro)
+    session.refresh(aluno)
+
+    return RegistroDisciplinarResponse(
+        registro=_montar_read(registro, professor_nome),
+        pontos_atuais=aluno.pontos_atuais,
+        whatsapp_link=None,
+    )
+
+
 @router.delete("/{registro_id}", status_code=status.HTTP_204_NO_CONTENT)
 def excluir_registro(
     registro_id: int,
     session: SessionDep,
     usuario_atual=Depends(require_roles(*GESTAO_ROLES)),
+    confirmar_saldo_negativo: bool = False,
 ):
     registro = _get_registro_da_escola(session, registro_id, usuario_atual.escola_id)
-    aluno = session.get(Aluno, registro.aluno_id)
+    eh_merito = registro.tipo == TipoRegistro.merito
+    if eh_merito:
+        _exigir_admin_para_merito(usuario_atual)
+
+    aluno = _travar_aluno(session, registro.aluno_id)
+    diminuiu = eh_merito and registro.peso < 0
 
     session.delete(registro)
     session.flush()
 
+    if diminuiu:
+        _avisar_se_saldo_negativo(session, aluno, confirmar_saldo_negativo)
     _refazer_pontos(session, aluno)
 
     session.add(aluno)

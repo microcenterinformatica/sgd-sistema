@@ -6,15 +6,14 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 
 ## 🔧 Mudança atual
 
-### Excluir/editar registro não pode inflar pontos — 24/11
-**Objetivo:** exclusão e edição refazem os pontos pelo histórico; acertar alunos afetados (ex.: Sarah, 49)
-- [x] Causa confirmada (méritos altos lançados e excluídos)
-- [x] Backend (exclusão e edição)
-- [x] Testar local (`tests/test_recalculo_pontos.py`)
+### Só o admin altera/exclui mérito — 25/11
+**Objetivo:** admin corrige o valor do mérito ou exclui sem inflar pontos; avisar se deixar saldo negativo na feirinha
+- [x] Combinar regra com o usuário (só admin; sem prazo)
+- [x] Backend (alterar mérito + permissão)
+- [x] Frontend (Histórico Disciplinar)
+- [x] Testar local (40 testes + tela nos 3 papéis)
 - [x] Aprovação do usuário + commit
-- [ ] Push / deploy (Render) + conferir
-- [ ] Backup do banco de produção
-- [ ] Acertar pontos dos alunos afetados + conferir
+- [ ] Push / deploy (Render + Vercel) + conferir (sem migração)
 
 <!--
 ### <Nome da mudança> — <data>
@@ -33,6 +32,8 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 
 ## ⏳ Pendente
 
+- [ ] Antes de religar a recuperação automática (desligada de propósito): evitar que aplique os ciclos atrasados
+- [ ] Repositório GitHub público: conferir histórico e tornar privado
 - [~] **Indicadores locais (BI nativo)**: código não commitado na branch `feature/indicadores-locais` 💻
 - [ ] Marcar turmas reais (1B, 2B, 5A) como Fundamental 1 ou 2 (checar faltas antes)
 - [ ] Fix de código do `search_path` do pooler Neon (hoje resolvido só por configuração)
@@ -42,7 +43,7 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 
 ---
 
-## ✅ Já feito (resumo, de 24/08 a 22/11/2026)
+## ✅ Já feito (resumo, de 24/08 a 25/11/2026)
 
 **Base do sistema** 🚀
 - [x] Backend FastAPI + PostgreSQL e frontend Next.js, multi-escola, com login e papéis
@@ -57,6 +58,7 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 - [x] Aluno com histórico não pode ser excluído; registros individuais podem
 
 **Disciplina** 🚀
+- [x] Excluir/editar registro não infla mais pontos; 14 alunos acertados e conferidos em produção (25/11, `7b7cbf8`)
 - [x] Banco da feirinha: cartão com QR, Caixa, Consulta de Saldo com extrato e Cartões (22/11, `bb8fa26`)
 - [x] Recuperação automática conta dias de aula + bônus de bom comportamento
 - [x] Registro de indisciplina/mérito com edição de data/hora (só admin/coordenação)
