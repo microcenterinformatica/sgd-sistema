@@ -6,14 +6,19 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 
 ## 🔧 Mudança atual
 
-### Só o admin altera/exclui mérito — 25/11
-**Objetivo:** admin corrige o valor do mérito ou exclui sem inflar pontos; avisar se deixar saldo negativo na feirinha
-- [x] Combinar regra com o usuário (só admin; sem prazo)
-- [x] Backend (alterar mérito + permissão)
-- [x] Frontend (Histórico Disciplinar)
-- [x] Testar local (40 testes + tela nos 3 papéis)
+### Repositório GitHub privado — 25/11
+**Objetivo:** fechar o código sem quebrar o deploy
+- [x] Histórico conferido: sem senhas de produção, telefones ou nomes completos (só 1 primeiro nome no CHECKLIST)
+- [ ] Render e Vercel com acesso ao repositório (apps do GitHub)
+- [ ] Tornar privado
+- [ ] Push de teste + conferir deploy
+
+### Verso novo do cartão do aluno (5A) — 25/11
+**Objetivo:** verso com escola, logo da Prefeitura e equipe, conforme o modelo em PDF
+- [x] Verso novo + logos no cartão
+- [x] Conferir em imagem (normal e tema claro)
 - [x] Aprovação do usuário + commit
-- [ ] Push / deploy (Render + Vercel) + conferir (sem migração)
+- [ ] Push (Vercel) + conferir em produção
 
 <!--
 ### <Nome da mudança> — <data>
@@ -33,7 +38,6 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 ## ⏳ Pendente
 
 - [ ] Antes de religar a recuperação automática (desligada de propósito): evitar que aplique os ciclos atrasados
-- [ ] Repositório GitHub público: conferir histórico e tornar privado
 - [~] **Indicadores locais (BI nativo)**: código não commitado na branch `feature/indicadores-locais` 💻
 - [ ] Marcar turmas reais (1B, 2B, 5A) como Fundamental 1 ou 2 (checar faltas antes)
 - [ ] Fix de código do `search_path` do pooler Neon (hoje resolvido só por configuração)
@@ -58,6 +62,7 @@ Legenda: `[x]` feito · `[ ]` a fazer · `[~]` em andamento · 🚀 em produçã
 - [x] Aluno com histórico não pode ser excluído; registros individuais podem
 
 **Disciplina** 🚀
+- [x] Só o admin altera/exclui mérito, com aviso de saldo negativo na feirinha (25/11, `b5d8ed3`)
 - [x] Excluir/editar registro não infla mais pontos; 14 alunos acertados e conferidos em produção (25/11, `7b7cbf8`)
 - [x] Banco da feirinha: cartão com QR, Caixa, Consulta de Saldo com extrato e Cartões (22/11, `bb8fa26`)
 - [x] Recuperação automática conta dias de aula + bônus de bom comportamento
