@@ -1,6 +1,6 @@
 // Extrato que explica a pontuação do aluno no Patrimônio Disciplinar (aba em Consultas).
 
-import { RankingItem } from "./types";
+import { ConfiguracaoRanking, RankingItem } from "./types";
 
 export interface ExtratoItem {
   /** "aaaa-mm-dd", já no horário de Brasília. */
@@ -66,6 +66,21 @@ export function formatarDataSemHora(iso: string): string {
   return `${dia}/${mes}/${ano}`;
 }
 
+/** Quanto as faltas e as atividades não entregues descontam. */
+export function descontosDoAluno(i: RankingItem, pesos: { peso_falta: number; peso_nao_entrega: number }) {
+  return {
+    faltas: -i.faltas_nao_justificadas * pesos.peso_falta,
+    naoEntregues: -i.atividades_nao_entregues * pesos.peso_nao_entrega,
+  };
+}
+
+export function formulaDaConta(config: ConfiguracaoRanking): string {
+  return (
+    `${pluralMoeda(config.nome_moeda)} = méritos − ocorrências − faltas não justificadas × ${formatarNumero(config.peso_falta)}` +
+    ` − atividades não entregues × ${formatarNumero(config.peso_nao_entrega)}.`
+  );
+}
+
 function quantidade(n: number): string {
   return n === 1 ? "1 lançamento" : `${n} lançamentos`;
 }
@@ -78,18 +93,19 @@ export interface LinhaConta {
 
 /** As quatro partes da conta; a soma delas é a pontuação. */
 export function linhasDaConta(e: ExtratoVeracoins): LinhaConta[] {
+  const { faltas, naoEntregues } = descontosDoAluno(e, e);
   return [
     { rotulo: "Méritos", detalhe: quantidade(e.meritos.length), valor: e.total_merito },
     { rotulo: "Ocorrências", detalhe: quantidade(e.ocorrencias.length), valor: -e.total_infracao },
     {
       rotulo: "Faltas não justificadas",
       detalhe: `${e.faltas_nao_justificadas} × ${formatarNumero(e.peso_falta)}`,
-      valor: -e.faltas_nao_justificadas * e.peso_falta,
+      valor: faltas,
     },
     {
       rotulo: "Atividades não entregues",
       detalhe: `${e.atividades_nao_entregues} × ${formatarNumero(e.peso_nao_entrega)}`,
-      valor: -e.atividades_nao_entregues * e.peso_nao_entrega,
+      valor: naoEntregues,
     },
   ];
 }

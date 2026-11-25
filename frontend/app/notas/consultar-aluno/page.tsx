@@ -1444,7 +1444,9 @@ function ConsultarAlunoContent() {
         </Card>
       )}
 
-      {aba === "extrato" && <ExtratoVeracoins turma={turma} alunoId={alunoId} onSelecionar={selecionarAluno} />}
+      {aba === "extrato" && (
+        <ExtratoVeracoins turma={turma} alunoId={alunoId} escolaNome={escolaNome} onSelecionar={selecionarAluno} />
+      )}
 
       {aba === "conteudo" && !todasDisciplinas && conteudos && <ConteudoCard conteudos={conteudos} />}
 

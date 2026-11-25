@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -151,18 +152,11 @@ def calcular_ranking(session: SessionDep, usuario_atual: CurrentUserDep):
     return _montar_ranking(session, usuario_atual.escola_id)
 
 
-@router.get("/ranking/extrato/{aluno_id}", response_model=ExtratoPontuacao)
-def extrato_da_pontuacao(aluno_id: int, session: SessionDep, usuario_atual: CurrentUserDep):
-    """A conta que forma a pontuação do aluno, lançamento por lançamento. Usa os
-    mesmos filtros de `_montar_ranking`: a soma dos itens é a pontuação. Professor
-    só vê alunos das turmas dele."""
-    escola_id = usuario_atual.escola_id
-    aluno = session.get(Aluno, aluno_id)
-    if aluno is None or aluno.escola_id != escola_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aluno não encontrado.")
-    verificar_permissao_turma(session, usuario_atual, aluno.turma)
-
-    resumo = next(i for i in _montar_ranking(session, escola_id) if i.aluno_id == aluno_id)
+def _montar_extratos(session: SessionDep, escola_id: int, alunos: list[Aluno]) -> list[ExtratoPontuacao]:
+    """A conta que forma a pontuação de cada aluno, lançamento por lançamento. Usa os
+    mesmos filtros de `_montar_ranking`: a soma dos itens é a pontuação."""
+    ids = [a.id for a in alunos] or [0]
+    resumos = {i.aluno_id: i for i in _montar_ranking(session, escola_id)}
     config = session.get(ConfiguracaoRanking, escola_id) or ConfiguracaoRanking(escola_id=escola_id)
     escola = session.get(Escola, escola_id)
     professores = dict(session.exec(select(Professor.id, Professor.nome).where(Professor.escola_id == escola_id)).all())
@@ -171,14 +165,15 @@ def extrato_da_pontuacao(aluno_id: int, session: SessionDep, usuario_atual: Curr
         session.exec(select(Disciplina.id, Disciplina.nome).where(Disciplina.escola_id == escola_id)).all()
     )
 
-    registros = session.exec(
+    meritos: dict[int, list[ExtratoPontuacaoItem]] = defaultdict(list)
+    ocorrencias: dict[int, list[ExtratoPontuacaoItem]] = defaultdict(list)
+    for r in session.exec(
         select(RegistroDisciplinar)
-        .where(RegistroDisciplinar.aluno_id == aluno_id)
+        .where(RegistroDisciplinar.aluno_id.in_(ids))
         .order_by(RegistroDisciplinar.data_hora.desc(), RegistroDisciplinar.id.desc())
-    ).all()
-
-    def itens_do_tipo(tipo: TipoRegistro) -> list[ExtratoPontuacaoItem]:
-        return [
+    ).all():
+        destino = meritos if r.tipo == TipoRegistro.merito else ocorrencias
+        destino[r.aluno_id].append(
             ExtratoPontuacaoItem(
                 data=para_horario_local(r.data_hora).date(),
                 descricao=r.descricao,
@@ -187,60 +182,82 @@ def extrato_da_pontuacao(aluno_id: int, session: SessionDep, usuario_atual: Curr
                 # Infração é gravada com peso positivo e mérito com negativo; na pontuação é o contrário.
                 valor=-r.peso,
             )
-            for r in registros
-            if r.tipo == tipo
-        ]
+        )
 
-    faltas = session.exec(
+    faltas: dict[int, list[ExtratoPontuacaoItem]] = defaultdict(list)
+    for f in session.exec(
         select(RegistroFalta)
         .where(
             RegistroFalta.escola_id == escola_id,
-            RegistroFalta.aluno_id == aluno_id,
+            RegistroFalta.aluno_id.in_(ids),
             RegistroFalta.justificada == False,  # noqa: E712
         )
         .order_by(RegistroFalta.data.desc(), RegistroFalta.id.desc())
-    ).all()
-    atividades = session.exec(
-        select(Atividade)
-        .join(Lancamento, Lancamento.atividade_id == Atividade.id)
-        .where(
-            Lancamento.aluno_id == aluno_id,
-            Lancamento.fez == False,  # noqa: E712
-            Atividade.ativo == True,  # noqa: E712
-        )
-    ).all()
-
-    return ExtratoPontuacao(
-        **resumo.model_dump(),
-        escola_nome=escola.nome if escola else "",
-        matricula=aluno.matricula,
-        nome_moeda=config.nome_moeda,
-        peso_falta=config.peso_falta,
-        peso_nao_entrega=config.peso_nao_entrega,
-        meritos=itens_do_tipo(TipoRegistro.merito),
-        ocorrencias=itens_do_tipo(TipoRegistro.infracao),
-        faltas=[
+    ).all():
+        faltas[f.aluno_id].append(
             ExtratoPontuacaoItem(
                 data=f.data,
                 descricao=disciplinas.get(f.disciplina_id, "Falta do dia"),
                 observacao=f.observacao,
                 valor=-config.peso_falta,
             )
-            for f in faltas
-        ],
-        nao_entregues=sorted(
-            (
-                ExtratoPontuacaoItem(
-                    data=a.data_entrega or a.data,
-                    descricao=f"{a.titulo} ({disciplinas[a.disciplina_id]})" if a.disciplina_id in disciplinas else a.titulo,
-                    valor=-config.peso_nao_entrega,
-                )
-                for a in atividades
-            ),
-            key=lambda i: i.data,
-            reverse=True,
-        ),
-    )
+        )
+
+    nao_entregues: dict[int, list[ExtratoPontuacaoItem]] = defaultdict(list)
+    for aluno_id, a in session.exec(
+        select(Lancamento.aluno_id, Atividade)
+        .join(Atividade, Lancamento.atividade_id == Atividade.id)
+        .where(
+            Lancamento.aluno_id.in_(ids),
+            Lancamento.fez == False,  # noqa: E712
+            Atividade.ativo == True,  # noqa: E712
+        )
+    ).all():
+        disciplina = disciplinas.get(a.disciplina_id)
+        nao_entregues[aluno_id].append(
+            ExtratoPontuacaoItem(
+                data=a.data_entrega or a.data,
+                descricao=f"{a.titulo} ({disciplina})" if disciplina else a.titulo,
+                valor=-config.peso_nao_entrega,
+            )
+        )
+
+    return [
+        ExtratoPontuacao(
+            **resumos[a.id].model_dump(),
+            escola_nome=escola.nome if escola else "",
+            matricula=a.matricula,
+            nome_moeda=config.nome_moeda,
+            peso_falta=config.peso_falta,
+            peso_nao_entrega=config.peso_nao_entrega,
+            meritos=meritos[a.id],
+            ocorrencias=ocorrencias[a.id],
+            faltas=faltas[a.id],
+            nao_entregues=sorted(nao_entregues[a.id], key=lambda i: i.data, reverse=True),
+        )
+        for a in alunos
+    ]
+
+
+@router.get("/ranking/extrato/{aluno_id}", response_model=ExtratoPontuacao)
+def extrato_da_pontuacao(aluno_id: int, session: SessionDep, usuario_atual: CurrentUserDep):
+    """Extrato de um aluno. Professor só vê alunos das turmas dele."""
+    aluno = session.get(Aluno, aluno_id)
+    if aluno is None or aluno.escola_id != usuario_atual.escola_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aluno não encontrado.")
+    verificar_permissao_turma(session, usuario_atual, aluno.turma)
+    return _montar_extratos(session, usuario_atual.escola_id, [aluno])[0]
+
+
+@router.get("/ranking/extrato-turma", response_model=list[ExtratoPontuacao])
+def extratos_da_turma(turma: str, session: SessionDep, usuario_atual: CurrentUserDep):
+    """Extratos de todos os alunos da turma (para imprimir de uma vez), na ordem da chamada."""
+    verificar_permissao_turma(session, usuario_atual, turma)
+    alunos = session.exec(
+        select(Aluno).where(Aluno.escola_id == usuario_atual.escola_id, Aluno.turma == turma)
+    ).all()
+    alunos = sorted(alunos, key=lambda a: (a.numero_chamada is None, a.numero_chamada or 0, a.nome.lower()))
+    return _montar_extratos(session, usuario_atual.escola_id, alunos)
 
 
 @router.get("/ranking/relatorio-top-turma")

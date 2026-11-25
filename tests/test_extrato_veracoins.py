@@ -173,3 +173,50 @@ def test_acesso_ao_extrato(client, cenario, fabrica):
     h_outra = fabrica.headers(fabrica.usuario(fabrica.escola()))
     assert client.get(cenario.url, headers=h_outra).status_code == 404
     assert client.get(cenario.url).status_code == 401
+
+
+def test_extratos_da_turma_iguais_aos_individuais(client, cenario, fabrica):
+    escola, turma = cenario.escola, cenario.turma
+    outro = fabrica.aluno(escola, turma, veracoins=7, nome="Outro Aluno")
+    fabrica.aluno(escola, fabrica.turma(escola, "1B"), veracoins=9)
+
+    r = client.get("/ranking/extrato-turma?turma=5A", headers=cenario.headers)
+    assert r.status_code == 200, r.text
+    por_id = {e["aluno_id"]: e for e in r.json()}
+    assert set(por_id) == {cenario.aluno.id, outro.id}  # só a turma pedida
+    for aluno_id, extrato in por_id.items():
+        assert client.get(f"/ranking/extrato/{aluno_id}", headers=cenario.headers).json() == extrato
+    assert por_id[outro.id]["pontuacao"] == 7 and por_id[outro.id]["faltas"] == []
+
+
+def test_extratos_da_turma_na_ordem_da_chamada(client, fabrica, session):
+    escola = fabrica.escola()
+    turma = fabrica.turma(escola)
+    for nome, numero in (("Sem número", None), ("Bia", 2), ("Ana", 10)):
+        aluno = fabrica.aluno(escola, turma, nome=nome)
+        aluno.numero_chamada = numero
+        session.add(aluno)
+        session.commit()
+    h = fabrica.headers(fabrica.usuario(escola))
+    nomes = [e["aluno_nome"] for e in client.get("/ranking/extrato-turma?turma=5A", headers=h).json()]
+    assert nomes == ["Bia", "Ana", "Sem número"]
+
+
+def test_acesso_aos_extratos_da_turma(client, cenario, fabrica):
+    url = "/ranking/extrato-turma?turma=5A"
+    usuario = fabrica.usuario(cenario.escola, papel=PapelUsuario.professor)
+    h = fabrica.headers(usuario)
+    assert client.get(url, headers=h).status_code == 403
+    prof = cenario.salvar(Professor(escola_id=cenario.escola.id, nome="Outro", usuario_id=usuario.id))
+    cenario.salvar(
+        Atribuicao(
+            escola_id=cenario.escola.id,
+            professor_id=prof.id,
+            disciplina_id=cenario.disciplina.id,
+            turma=cenario.turma.nome,
+        )
+    )
+    assert len(client.get(url, headers=h).json()) == 1
+    # Outra escola com uma turma de mesmo nome não recebe nada desta.
+    assert client.get(url, headers=fabrica.headers(fabrica.usuario(fabrica.escola()))).json() == []
+    assert client.get(url).status_code == 401

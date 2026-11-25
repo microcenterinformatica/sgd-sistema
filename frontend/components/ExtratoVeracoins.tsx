@@ -1,25 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { ArrowLeft, Download } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api, ApiError } from "@/lib/api";
 import {
   ExtratoVeracoins as Extrato,
   SaldoFeirinha,
+  descontosDoAluno,
   formatarComSinal,
   formatarDataSemHora,
-  formatarNumero,
   formatarTotal,
+  formulaDaConta,
   linhasDaConta,
   notaFeirinha,
   pluralMoeda,
   rotuloItem,
   secoesDoExtrato,
 } from "@/lib/extrato-veracoins";
-import { gerarPdfExtrato } from "@/lib/extrato-veracoins-pdf";
-import { ConfiguracaoRanking, RankingItem } from "@/lib/types";
+import { OpcoesPdfExtrato, gerarPdfExtrato, gerarPdfExtratosDaTurma, gerarPdfResumoTurma } from "@/lib/extrato-veracoins-pdf";
+import { ExtratoTurma } from "@/lib/feirinha";
+import { ConfiguracaoRanking, RankingItem, Turma } from "@/lib/types";
 
 const COLUNAS_TURMA = "sm:grid sm:grid-cols-[minmax(0,1fr)_5rem_5rem_8rem_8rem_6rem] sm:gap-2 sm:items-center";
 
@@ -32,8 +35,62 @@ function mensagemErro(e: unknown): string {
   return e instanceof ApiError ? e.message : "Sem conexão com o servidor.";
 }
 
+interface PropsPdf {
+  opcoes: OpcoesPdfExtrato;
+  onOpcoes: (o: OpcoesPdfExtrato) => void;
+}
+
+function BarraPdf({ opcoes, onOpcoes, children }: PropsPdf & { children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:ml-auto">
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={opcoes.incluirProfessor}
+          onChange={(e) => onOpcoes({ ...opcoes, incluirProfessor: e.target.checked })}
+          className="size-4 accent-primary"
+        />
+        Professores no PDF
+      </label>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={opcoes.incluirObservacoes}
+          onChange={(e) => onOpcoes({ ...opcoes, incluirObservacoes: e.target.checked })}
+          className="size-4 accent-primary"
+        />
+        Observações no PDF
+      </label>
+      {children}
+    </div>
+  );
+}
+
+/** Extratos e saldos da feirinha de todos os alunos da turma, na ordem da chamada. */
+async function buscarExtratosDaTurma(turma: string) {
+  const turmas = await api.get<Turma[]>("/turmas-cadastro");
+  const id = turmas.find((t) => t.nome === turma)?.id;
+  const [extratos, feirinha] = await Promise.all([
+    api.get<Extrato[]>(`/ranking/extrato-turma?turma=${encodeURIComponent(turma)}`),
+    api.get<ExtratoTurma>(`/feirinha/extrato-turma?turma_id=${id}`),
+  ]);
+  const saldos = new Map(feirinha.alunos.map((a) => [a.aluno_id, a]));
+  return extratos.map((extrato) => {
+    const saldo = saldos.get(extrato.aluno_id);
+    if (!saldo) throw new ApiError(409, "A lista de alunos mudou. Tente novamente.");
+    return { extrato, feirinha: saldo };
+  });
+}
+
 /** A conta de todos os alunos da turma, lado a lado. Clicar no aluno abre o extrato dele. */
-function ContaDaTurma({ turma, onAbrirAluno }: { turma: string; onAbrirAluno: (id: number) => void }) {
+function ContaDaTurma({
+  turma,
+  escolaNome,
+  onAbrirAluno,
+  opcoes,
+  onOpcoes,
+}: PropsPdf & { turma: string; escolaNome: string; onAbrirAluno: (id: number) => void }) {
+  const [gerando, setGerando] = useState(false);
   const [dados, setDados] = useState<{ itens: RankingItem[]; config: ConfiguracaoRanking } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -55,78 +112,103 @@ function ContaDaTurma({ turma, onAbrirAluno }: { turma: string; onAbrirAluno: (i
     .filter((i) => i.turma === turma)
     .sort((a, b) => b.pontuacao - a.pontuacao || a.aluno_nome.localeCompare(b.aluno_nome));
 
+  async function baixarExtratos() {
+    setGerando(true);
+    try {
+      gerarPdfExtratosDaTurma(await buscarExtratosDaTurma(turma), turma, opcoes);
+    } catch (e) {
+      toast.error(mensagemErro(e));
+    } finally {
+      setGerando(false);
+    }
+  }
+
   return (
-    <Card>
-      <CardHeader className="border-b pb-3">
-        <CardTitle>
-          Extrato de {pluralMoeda(config.nome_moeda)} — Turma {turma}
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {pluralMoeda(config.nome_moeda)} = méritos − ocorrências − faltas não justificadas × {formatarNumero(config.peso_falta)} − atividades não
-          entregues × {formatarNumero(config.peso_nao_entrega)}. Clique no aluno para ver cada lançamento.
-        </p>
-      </CardHeader>
-      <CardContent className="text-sm">
-        {itens.length === 0 ? (
-          <p className="text-muted-foreground">Nenhum aluno encontrado nessa turma.</p>
-        ) : (
-          <>
-            <div className={`hidden ${COLUNAS_TURMA} py-2 text-xs text-muted-foreground border-b`}>
-              <span>Aluno</span>
-              <span className="text-right">Méritos</span>
-              <span className="text-right">Ocorrências</span>
-              <span className="text-right">Faltas</span>
-              <span className="text-right">Não entregues</span>
-              <span className="text-right">{pluralMoeda(config.nome_moeda)}</span>
-            </div>
-            <ul className="divide-y">
-              {itens.map((i) => {
-                const faltas = -i.faltas_nao_justificadas * config.peso_falta;
-                const naoEntregues = -i.atividades_nao_entregues * config.peso_nao_entrega;
-                return (
-                  <li key={i.aluno_id}>
-                    <button
-                      type="button"
-                      onClick={() => onAbrirAluno(i.aluno_id)}
-                      className={`${COLUNAS_TURMA} w-full text-left py-2.5 min-h-11 hover:bg-muted/60 tabular-nums`}
-                    >
-                      <span className="flex items-baseline justify-between gap-3">
-                        <span className="font-medium text-foreground">{i.aluno_nome}</span>
-                        <span className="sm:hidden font-bold shrink-0">{formatarTotal(i.pontuacao)}</span>
-                      </span>
-                      <span className="sm:hidden block text-xs text-muted-foreground mt-0.5">
-                        méritos {formatarComSinal(i.total_merito)} · ocorrências {formatarComSinal(-i.total_infracao)} · {i.faltas_nao_justificadas}{" "}
-                        falta(s) {formatarComSinal(faltas)} · {i.atividades_nao_entregues} não entregue(s) {formatarComSinal(naoEntregues)}
-                      </span>
-                      <span className={`hidden sm:block text-right ${corDoValor(i.total_merito)}`}>{formatarComSinal(i.total_merito)}</span>
-                      <span className={`hidden sm:block text-right ${corDoValor(-i.total_infracao)}`}>{formatarComSinal(-i.total_infracao)}</span>
-                      <span className="hidden sm:block text-right">
-                        <span className="text-xs text-muted-foreground">{i.faltas_nao_justificadas} = </span>
-                        <span className={corDoValor(faltas)}>{formatarComSinal(faltas)}</span>
-                      </span>
-                      <span className="hidden sm:block text-right">
-                        <span className="text-xs text-muted-foreground">{i.atividades_nao_entregues} = </span>
-                        <span className={corDoValor(naoEntregues)}>{formatarComSinal(naoEntregues)}</span>
-                      </span>
-                      <span className="hidden sm:block text-right font-bold">{formatarTotal(i.pontuacao)}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        )}
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      {itens.length > 0 && (
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Button variant="outline" onClick={() => gerarPdfResumoTurma(itens, config, escolaNome, turma)}>
+              <Download className="size-4" /> Resumo da turma (PDF)
+            </Button>
+            <BarraPdf opcoes={opcoes} onOpcoes={onOpcoes}>
+              <Button variant="outline" onClick={baixarExtratos} disabled={gerando}>
+                <Download className="size-4" /> {gerando ? "Gerando..." : "Extratos de todos (PDF)"}
+              </Button>
+            </BarraPdf>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            O resumo mostra todos os alunos e é para uso da escola. Nos extratos, cada aluno começa em página nova: imprima só na frente da folha para
+            separar e entregar.
+          </p>
+        </div>
+      )}
+      <Card>
+        <CardHeader className="border-b pb-3">
+          <CardTitle>
+            Extrato de {pluralMoeda(config.nome_moeda)} — Turma {turma}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">{formulaDaConta(config)} Clique no aluno para ver cada lançamento.</p>
+        </CardHeader>
+        <CardContent className="text-sm">
+          {itens.length === 0 ? (
+            <p className="text-muted-foreground">Nenhum aluno encontrado nessa turma.</p>
+          ) : (
+            <>
+              <div className={`hidden ${COLUNAS_TURMA} py-2 text-xs text-muted-foreground border-b`}>
+                <span>Aluno</span>
+                <span className="text-right">Méritos</span>
+                <span className="text-right">Ocorrências</span>
+                <span className="text-right">Faltas</span>
+                <span className="text-right">Não entregues</span>
+                <span className="text-right">{pluralMoeda(config.nome_moeda)}</span>
+              </div>
+              <ul className="divide-y">
+                {itens.map((i) => {
+                  const { faltas, naoEntregues } = descontosDoAluno(i, config);
+                  return (
+                    <li key={i.aluno_id}>
+                      <button
+                        type="button"
+                        onClick={() => onAbrirAluno(i.aluno_id)}
+                        className={`${COLUNAS_TURMA} w-full text-left py-2.5 min-h-11 hover:bg-muted/60 tabular-nums`}
+                      >
+                        <span className="flex items-baseline justify-between gap-3">
+                          <span className="font-medium text-foreground">{i.aluno_nome}</span>
+                          <span className="sm:hidden font-bold shrink-0">{formatarTotal(i.pontuacao)}</span>
+                        </span>
+                        <span className="sm:hidden block text-xs text-muted-foreground mt-0.5">
+                          méritos {formatarComSinal(i.total_merito)} · ocorrências {formatarComSinal(-i.total_infracao)} · {i.faltas_nao_justificadas}{" "}
+                          falta(s) {formatarComSinal(faltas)} · {i.atividades_nao_entregues} não entregue(s) {formatarComSinal(naoEntregues)}
+                        </span>
+                        <span className={`hidden sm:block text-right ${corDoValor(i.total_merito)}`}>{formatarComSinal(i.total_merito)}</span>
+                        <span className={`hidden sm:block text-right ${corDoValor(-i.total_infracao)}`}>{formatarComSinal(-i.total_infracao)}</span>
+                        <span className="hidden sm:block text-right">
+                          <span className="text-xs text-muted-foreground">{i.faltas_nao_justificadas} = </span>
+                          <span className={corDoValor(faltas)}>{formatarComSinal(faltas)}</span>
+                        </span>
+                        <span className="hidden sm:block text-right">
+                          <span className="text-xs text-muted-foreground">{i.atividades_nao_entregues} = </span>
+                          <span className={corDoValor(naoEntregues)}>{formatarComSinal(naoEntregues)}</span>
+                        </span>
+                        <span className="hidden sm:block text-right font-bold">{formatarTotal(i.pontuacao)}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
 /** A conta do aluno e cada lançamento, separados por tipo. */
-function ContaDoAluno({ alunoId, onVerTurma }: { alunoId: number; onVerTurma: () => void }) {
+function ContaDoAluno({ alunoId, onVerTurma, opcoes, onOpcoes }: PropsPdf & { alunoId: number; onVerTurma: () => void }) {
   const [dados, setDados] = useState<{ extrato: Extrato; feirinha: SaldoFeirinha } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [incluirProfessor, setIncluirProfessor] = useState(true);
-  const [incluirObservacoes, setIncluirObservacoes] = useState(true);
 
   useEffect(() => {
     let cancelado = false;
@@ -151,19 +233,11 @@ function ContaDoAluno({ alunoId, onVerTurma }: { alunoId: number; onVerTurma: ()
         <Button variant="outline" onClick={onVerTurma}>
           <ArrowLeft className="size-4" /> Ver turma toda
         </Button>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:ml-auto">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={incluirProfessor} onChange={(e) => setIncluirProfessor(e.target.checked)} className="size-4 accent-primary" />
-            Professores no PDF
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={incluirObservacoes} onChange={(e) => setIncluirObservacoes(e.target.checked)} className="size-4 accent-primary" />
-            Observações no PDF
-          </label>
-          <Button variant="outline" onClick={() => gerarPdfExtrato(extrato, feirinha, { incluirProfessor, incluirObservacoes })}>
+        <BarraPdf opcoes={opcoes} onOpcoes={onOpcoes}>
+          <Button variant="outline" onClick={() => gerarPdfExtrato(dados, opcoes)}>
             <Download className="size-4" /> Baixar extrato (PDF)
           </Button>
-        </div>
+        </BarraPdf>
       </div>
 
       <Card>
@@ -236,14 +310,21 @@ function ContaDoAluno({ alunoId, onVerTurma }: { alunoId: number; onVerTurma: ()
 export function ExtratoVeracoins({
   turma,
   alunoId,
+  escolaNome,
   onSelecionar,
 }: {
   turma: string;
   alunoId: number | "todos" | "";
+  escolaNome: string;
   onSelecionar: (valor: string) => void;
 }) {
+  const [opcoes, setOpcoes] = useState<OpcoesPdfExtrato>({ incluirProfessor: true, incluirObservacoes: true });
   if (!turma || !alunoId) return null;
+  const pdf = { opcoes, onOpcoes: setOpcoes };
   // `key` recomeça a consulta do zero ao trocar de turma ou de aluno.
-  if (alunoId === "todos") return <ContaDaTurma key={turma} turma={turma} onAbrirAluno={(id) => onSelecionar(String(id))} />;
-  return <ContaDoAluno key={alunoId} alunoId={alunoId} onVerTurma={() => onSelecionar("todos")} />;
+  return alunoId === "todos" ? (
+    <ContaDaTurma key={turma} turma={turma} escolaNome={escolaNome} onAbrirAluno={(id) => onSelecionar(String(id))} {...pdf} />
+  ) : (
+    <ContaDoAluno key={alunoId} alunoId={alunoId} onVerTurma={() => onSelecionar("todos")} {...pdf} />
+  );
 }
