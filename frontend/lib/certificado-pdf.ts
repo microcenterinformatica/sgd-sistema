@@ -71,11 +71,17 @@ export function tituloDoCertificado(feminino: boolean): string {
   return feminino ? "Aluna destaque em boas atitudes" : "Aluno destaque em boas atitudes";
 }
 
-/** Só o 1º lugar sem empate é "o que mais se destacou"; os demais são "um dos que mais se destacaram". */
-export function textoDoCertificado(feminino: boolean, unicoPrimeiro: boolean, ano: number): string {
-  const quem = unicoPrimeiro
-    ? `${feminino ? "a aluna" : "o aluno"} que mais se destacou`
-    : `${feminino ? "uma das alunas" : "um dos alunos"} que mais se destacaram`;
+/**
+ * 1º lugar sem empate: "o que mais se destacou"; 1º lugar empatado: "um dos que mais se destacaram";
+ * demais alunos: "um dos que se destacaram".
+ */
+export function textoDoCertificado(feminino: boolean, primeiroLugar: boolean, unicoPrimeiro: boolean, ano: number): string {
+  const umDos = feminino ? "uma das alunas" : "um dos alunos";
+  const quem = !primeiroLugar
+    ? `${umDos} que se destacaram`
+    : unicoPrimeiro
+      ? `${feminino ? "a aluna" : "o aluno"} que mais se destacou`
+      : `${umDos} que mais se destacaram`;
   return (
     `foi ${quem} pela disciplina, respeito às regras e boas atitudes durante o ano letivo de ${ano}, ` +
     `conforme os registros do Sistema de Gestão Escolar (SGE), ` +
@@ -216,7 +222,7 @@ export async function gerarPdfCertificados(premiados: PremiadoCertificado[], uni
     doc.line(CENTRO - 85, 129, CENTRO + 85, 129);
 
     doc.setTextColor(...TEXTO).setFont("times", "normal").setFontSize(16);
-    const texto = limpar(p.texto ?? "") || textoDoCertificado(p.feminino, p.posicao === 1 && unicoPrimeiro, dados.ano);
+    const texto = limpar(p.texto ?? "") || textoDoCertificado(p.feminino, p.posicao === 1, unicoPrimeiro, dados.ano);
     // O parágrafo tem espaço para 3 linhas em corpo 16 antes da data; texto maior diminui a letra.
     let corpo = 16;
     let linhas = doc.splitTextToSize(texto, 222);

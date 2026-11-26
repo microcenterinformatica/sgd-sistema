@@ -116,7 +116,7 @@ export function CertificadosDialog({
 
   const comSelo = linhas.filter((l) => l.selo);
   const unicoPrimeiro = comSelo.length === 1;
-  const textoPadrao = (l: Linha) => textoDoCertificado(l.feminino, l.selo && l.posicao === 1 && unicoPrimeiro, ano);
+  const textoPadrao = (l: Linha) => textoDoCertificado(l.feminino, l.selo && l.posicao === 1, unicoPrimeiro, ano);
   const demais = linhas.filter((l) => !l.selo);
   const escolhidos = linhas.filter((l) => l.incluir);
   const demaisMarcados = demais.filter((l) => l.incluir).length;
