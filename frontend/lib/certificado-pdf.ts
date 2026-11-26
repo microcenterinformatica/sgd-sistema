@@ -67,10 +67,8 @@ function dataPorExtenso(iso: string): string {
   return new Date(ano, mes - 1, dia).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
 }
 
-/** "Mais disciplinado(a)" só para o 1º lugar (com selo); os demais são "disciplinado(a)". */
-export function tituloDoCertificado(feminino: boolean, primeiroLugar: boolean): string {
-  if (primeiroLugar) return feminino ? "Aluna mais disciplinada" : "Aluno mais disciplinado";
-  return feminino ? "Aluna disciplinada" : "Aluno disciplinado";
+export function tituloDoCertificado(feminino: boolean): string {
+  return feminino ? "Aluna destaque em boas atitudes" : "Aluno destaque em boas atitudes";
 }
 
 /** Só o 1º lugar sem empate é "o que mais se destacou"; os demais são "um dos que mais se destacaram". */
@@ -200,7 +198,7 @@ export async function gerarPdfCertificados(premiados: PremiadoCertificado[], uni
     doc.setFont("Cinzel", "bold").setFontSize(40);
     doc.text("CERTIFICADO", CENTRO, 43.5, { align: "center" });
     doc.setTextColor(...OURO_ESCURO).setFontSize(16);
-    doc.text(limpar(`${tituloDoCertificado(p.feminino, p.posicao === 1)} · Turma ${dados.turma}`).toUpperCase(), CENTRO, 53, { align: "center" });
+    doc.text(limpar(`${tituloDoCertificado(p.feminino)} · Turma ${dados.turma}`).toUpperCase(), CENTRO, 53, { align: "center" });
 
     if (p.posicao === null) ornamento(doc, 76);
     else medalha(doc, p.posicao, 74);

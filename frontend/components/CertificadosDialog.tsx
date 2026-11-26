@@ -169,7 +169,7 @@ export function CertificadosDialog({
               disabled={!l.incluir}
               className="accent-primary"
             />
-            {tituloDoCertificado(feminino, l.selo)}
+            {tituloDoCertificado(feminino)}
           </label>
         ))}
       </div>
