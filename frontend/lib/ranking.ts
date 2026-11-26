@@ -21,10 +21,5 @@ export function ordenarComPosicaoCompartilhada(lista: RankingItem[]): ItemComPos
   return resultado;
 }
 
-/** Certificados com selo de colocação vão do 1º lugar até esta colocação. */
-export const ULTIMA_COLOCACAO_PREMIADA = 3;
-
-/** Quem ganha certificado (empatados na mesma colocação entram todos), só com pontuação positiva. */
-export function premiados(lista: RankingItem[]): ItemComPosicao[] {
-  return ordenarComPosicaoCompartilhada(lista).filter((i) => i.posicao <= ULTIMA_COLOCACAO_PREMIADA && i.item.pontuacao > 0);
-}
+/** Certificados com selo de colocação vão do 1º lugar até esta colocação (empatados entram todos). */
+export const ULTIMA_COLOCACAO_PREMIADA = 1;

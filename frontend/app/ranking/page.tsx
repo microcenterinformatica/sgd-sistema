@@ -9,7 +9,7 @@ import { Award, Download, Medal, MinusCircle } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError, baixarArquivo } from "@/lib/api";
 import { ConfiguracaoRanking, Professor, RankingItem, RegistroMeritoTurmaResponse } from "@/lib/types";
-import { ItemComPosicao, ordenarComPosicaoCompartilhada, premiados } from "@/lib/ranking";
+import { ItemComPosicao, ordenarComPosicaoCompartilhada } from "@/lib/ranking";
 import { CertificadosDialog } from "@/components/CertificadosDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { MoedaVeracom } from "@/components/MoedaVeracom";
@@ -277,7 +277,7 @@ function RankingContent() {
 
   const turmaSelecionada = visao === "turma" && turmaFiltro !== "todas" && turmaFiltro !== "sem-turma" ? turmaFiltro : null;
 
-  const premiadosDaTurma = turmaSelecionada ? premiados((itens ?? []).filter((i) => i.turma === turmaSelecionada)) : [];
+  const alunosDaTurma = turmaSelecionada ? ordenarComPosicaoCompartilhada((itens ?? []).filter((i) => i.turma === turmaSelecionada)) : [];
 
   async function baixarListaTop() {
     if (!turmaSelecionada) return;
@@ -445,7 +445,7 @@ function RankingContent() {
       {turmaSelecionada && certificadosAbertos && (
         <CertificadosDialog
           turma={turmaSelecionada}
-          premiados={premiadosDaTurma}
+          alunosDaTurma={alunosDaTurma}
           nomeMoeda={nomeMoeda}
           onFechar={() => setCertificadosAbertos(false)}
         />

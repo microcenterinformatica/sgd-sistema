@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { gerarPdfCertificados, tituloDoCertificado } from "@/lib/certificado-pdf";
 import { pluralMoeda } from "@/lib/extrato-veracoins";
 import { ItemComPosicao, ULTIMA_COLOCACAO_PREMIADA } from "@/lib/ranking";
-import { Aluno, AnoLetivo, Escola } from "@/lib/types";
+import { AnoLetivo, Escola } from "@/lib/types";
 import { versoDaTurma } from "@/lib/verso-cartao";
 
 interface Textos {
@@ -24,8 +24,10 @@ interface Textos {
 
 interface Linha {
   alunoId: number;
-  /** null = aluno com 0 pontos no histórico, fora do pódio: certificado sem selo. */
-  posicao: number | null;
+  /** Colocação no ranking da turma. */
+  posicao: number;
+  /** Só o 1º lugar recebe o selo; os demais saem sem selo, se a professora marcar. */
+  selo: boolean;
   pontuacao: number;
   nome: string;
   feminino: boolean;
@@ -59,12 +61,13 @@ function hoje(): string {
 
 export function CertificadosDialog({
   turma,
-  premiados,
+  alunosDaTurma,
   nomeMoeda,
   onFechar,
 }: {
   turma: string;
-  premiados: ItemComPosicao[];
+  /** Todos os alunos da turma, já ordenados com a colocação. */
+  alunosDaTurma: ItemComPosicao[];
   nomeMoeda: string;
   onFechar: () => void;
 }) {
@@ -72,17 +75,19 @@ export function CertificadosDialog({
   const [ano, setAno] = useState(new Date().getFullYear());
   const [data, setData] = useState(hoje);
   const [gerando, setGerando] = useState(false);
-  const [incluirZerados, setIncluirZerados] = useState(false);
-  const [carregandoZerados, setCarregandoZerados] = useState(true);
   const [linhas, setLinhas] = useState<Linha[]>(() =>
-    premiados.map(({ item, posicao }) => ({
-      alunoId: item.aluno_id,
-      posicao,
-      pontuacao: item.pontuacao,
-      nome: item.aluno_nome,
-      feminino: false,
-      incluir: true,
-    }))
+    alunosDaTurma.map(({ item, posicao }) => {
+      const selo = posicao <= ULTIMA_COLOCACAO_PREMIADA && item.pontuacao > 0;
+      return {
+        alunoId: item.aluno_id,
+        posicao,
+        selo,
+        pontuacao: item.pontuacao,
+        nome: item.aluno_nome,
+        feminino: false,
+        incluir: selo,
+      };
+    })
   );
 
   useEffect(() => {
@@ -97,29 +102,17 @@ export function CertificadosDialog({
         if (atual) setAno(atual.ano);
       })
       .catch(() => undefined);
-    const noPodio = new Set(premiados.map((p) => p.item.aluno_id));
-    api
-      .get<Aluno[]>("/alunos")
-      .then((alunos) => {
-        const zerados = alunos
-          .filter((a) => a.turma === turma && a.pontos_atuais === 0 && !noPodio.has(a.id))
-          .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
-          .map((a) => ({ alunoId: a.id, posicao: null, pontuacao: 0, nome: a.nome, feminino: false, incluir: true }));
-        setLinhas((ls) => [...ls.filter((l) => l.posicao !== null), ...zerados]);
-      })
-      .catch(() => toast.error("Não foi possível carregar os alunos com 0 pontos."))
-      .finally(() => setCarregandoZerados(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turma]);
 
   const mudarTexto = (campo: keyof Textos, valor: string) => setTextos((t) => t && { ...t, [campo]: valor });
   const mudarLinha = (id: number, mudanca: Partial<Linha>) =>
     setLinhas((ls) => ls.map((l) => (l.alunoId === id ? { ...l, ...mudanca } : l)));
 
-  const podio = linhas.filter((l) => l.posicao !== null);
-  const zerados = linhas.filter((l) => l.posicao === null);
-  const escolhidos = linhas.filter((l) => l.incluir && (l.posicao !== null || incluirZerados));
-  const empate = new Set(podio.map((l) => l.posicao)).size < podio.length;
+  const comSelo = linhas.filter((l) => l.selo);
+  const demais = linhas.filter((l) => !l.selo);
+  const escolhidos = linhas.filter((l) => l.incluir);
+  const demaisMarcados = demais.filter((l) => l.incluir).length;
+  const marcarDemais = (incluir: boolean) => setLinhas((ls) => ls.map((l) => (l.selo ? l : { ...l, incluir })));
 
   async function gerar() {
     if (!textos) return;
@@ -129,8 +122,9 @@ export function CertificadosDialog({
     }
     setGerando(true);
     try {
-      const unicoPrimeiro = podio.filter((l) => l.posicao === 1).length === 1;
-      await gerarPdfCertificados(escolhidos, unicoPrimeiro, { ...textos, turma, ano, data });
+      const unicoPrimeiro = comSelo.length === 1;
+      const paraPdf = escolhidos.map((l) => ({ nome: l.nome, feminino: l.feminino, posicao: l.selo ? l.posicao : null }));
+      await gerarPdfCertificados(paraPdf, unicoPrimeiro, { ...textos, turma, ano, data });
       localStorage.setItem(chave(turma), JSON.stringify(textos));
       onFechar();
     } catch {
@@ -149,7 +143,7 @@ export function CertificadosDialog({
           onChange={(e) => mudarLinha(l.alunoId, { incluir: e.target.checked })}
           className="size-4 accent-primary"
         />
-        {l.posicao !== null ? `${l.posicao}º lugar · ${l.pontuacao.toLocaleString("pt-BR")} ${nomeMoeda}` : "Sem selo · 0 pontos no histórico"}
+        {l.selo ? `${l.posicao}º lugar · com selo` : `${l.posicao}º no ranking · sem selo`} · {l.pontuacao.toLocaleString("pt-BR")} {nomeMoeda}
       </label>
       <Input
         value={l.nome}
@@ -181,8 +175,8 @@ export function CertificadosDialog({
         <DialogHeader>
           <DialogTitle>Certificados — Turma {turma}</DialogTitle>
           <DialogDescription>
-            Do 1º ao {ULTIMA_COLOCACAO_PREMIADA}º lugar no total de {pluralMoeda(nomeMoeda)} até hoje, com selo. Opcionalmente, os demais
-            alunos com 0 pontos no histórico, sem selo. Confira os nomes antes de gerar.
+            O 1º lugar no total de {pluralMoeda(nomeMoeda)} até hoje recebe o certificado com selo. Os demais alunos da turma podem
+            receber o certificado sem selo: marque quem vai receber e confira os nomes antes de gerar.
           </DialogDescription>
         </DialogHeader>
 
@@ -190,35 +184,31 @@ export function CertificadosDialog({
           <p className="text-sm text-muted-foreground">Carregando...</p>
         ) : (
           <div className="space-y-4">
-            {podio.length > 0 ? (
-              <ul className="divide-y rounded-lg border">{podio.map((l) => linhaDoAluno(l))}</ul>
+            {comSelo.length > 0 ? (
+              <ul className="divide-y rounded-lg border">{comSelo.map((l) => linhaDoAluno(l))}</ul>
             ) : (
-              <p className="text-sm text-muted-foreground">Nenhum aluno da turma tem pontuação positiva para o pódio.</p>
+              <p className="text-sm text-muted-foreground">Nenhum aluno da turma tem pontuação positiva para o 1º lugar.</p>
             )}
-            {empate && <p className="text-xs text-muted-foreground">Há empate: todos os alunos da mesma colocação recebem certificado.</p>}
+            {comSelo.length > 1 && <p className="text-xs text-muted-foreground">Há empate no 1º lugar: todos recebem o selo.</p>}
 
-            <div className="space-y-2 rounded-lg border p-3">
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input
-                  type="checkbox"
-                  checked={incluirZerados}
-                  onChange={(e) => setIncluirZerados(e.target.checked)}
-                  disabled={carregandoZerados || zerados.length === 0}
-                  className="size-4 accent-primary"
-                />
-                Incluir os demais alunos com 0 pontos no histórico (sem selo de colocação)
-              </label>
-              <p className="text-xs text-muted-foreground">
-                {carregandoZerados
-                  ? "Carregando alunos..."
-                  : zerados.length === 0
-                    ? "Nenhum outro aluno da turma está com 0 pontos."
-                    : `${zerados.length} aluno(s) fora do pódio com 0 pontos.`}
-              </p>
-              {incluirZerados && zerados.length > 0 && (
-                <ul className="divide-y rounded-lg border">{zerados.map((l) => linhaDoAluno(l))}</ul>
-              )}
-            </div>
+            {demais.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium">
+                    Demais alunos, sem selo ({demaisMarcados} de {demais.length} marcados)
+                  </p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => marcarDemais(true)}>
+                      Marcar todos
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => marcarDemais(false)}>
+                      Desmarcar todos
+                    </Button>
+                  </div>
+                </div>
+                <ul className="divide-y rounded-lg border">{demais.map((l) => linhaDoAluno(l))}</ul>
+              </div>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1 sm:col-span-2">
