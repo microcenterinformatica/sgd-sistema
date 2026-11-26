@@ -80,7 +80,7 @@ export function textoDoCertificado(feminino: boolean, unicoPrimeiro: boolean, an
     : `${feminino ? "uma das alunas" : "um dos alunos"} que mais se destacaram`;
   return (
     `foi ${quem} pela disciplina, respeito às regras e boas atitudes durante o ano letivo de ${ano}, ` +
-    `conforme os registros do Sistema de Gestão da Disciplina (SGD), ` +
+    `conforme os registros do Sistema de Gestão Escolar (SGE), ` +
     `sendo ${feminino ? "reconhecida" : "reconhecido"} como exemplo para toda a comunidade escolar.`
   );
 }
