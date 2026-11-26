@@ -13,7 +13,8 @@ export interface DadosCertificado {
 }
 
 export interface PremiadoCertificado {
-  posicao: number;
+  /** null = certificado sem selo de colocação (aluno com 0 pontos fora do pódio). */
+  posicao: number | null;
   nome: string;
   /** Escolhido por quem gera; nunca deduzido do nome. */
   feminino: boolean;
@@ -142,6 +143,16 @@ function medalha(doc: jsPDF, posicao: number, y: number) {
   doc.text("LUGAR", CENTRO, y + 8, { align: "center" });
 }
 
+/** No lugar do selo, para quem não ficou entre os premiados: estrelas douradas com filetes. */
+function ornamento(doc: jsPDF, y: number) {
+  doc.setDrawColor(...OURO).setLineWidth(0.5);
+  doc.line(CENTRO - 60, y, CENTRO - 16, y);
+  doc.line(CENTRO + 16, y, CENTRO + 60, y);
+  estrela(doc, CENTRO - 9, y, 3.2, OURO);
+  estrela(doc, CENTRO, y, 5, OURO);
+  estrela(doc, CENTRO + 9, y, 3.2, OURO);
+}
+
 function assinatura(doc: jsPDF, x: number, nome: string, cargo: string) {
   doc.setDrawColor(...NAVY).setLineWidth(0.3);
   doc.line(x - 42, 177, x + 42, 177);
@@ -151,7 +162,7 @@ function assinatura(doc: jsPDF, x: number, nome: string, cargo: string) {
   doc.text(cargo, x, nome ? 187.5 : 182.5, { align: "center" });
 }
 
-/** Um PDF A4 deitado, com uma folha por premiado. */
+/** Um PDF A4 deitado, com uma folha por aluno. */
 export async function gerarPdfCertificados(premiados: PremiadoCertificado[], unicoPrimeiro: boolean, dados: DadosCertificado) {
   const [fonte, logoPrefeitura, brasao, logoMoeda] = await Promise.all([
     carregarDataUrl("/fonts/Cinzel-Bold.ttf"),
@@ -184,7 +195,8 @@ export async function gerarPdfCertificados(premiados: PremiadoCertificado[], uni
     doc.setTextColor(...OURO_ESCURO).setFontSize(16);
     doc.text(limpar(`${tituloDoCertificado(p.feminino)} · Turma ${dados.turma}`).toUpperCase(), CENTRO, 53, { align: "center" });
 
-    medalha(doc, p.posicao, 74);
+    if (p.posicao === null) ornamento(doc, 76);
+    else medalha(doc, p.posicao, 74);
 
     doc.setTextColor(...TEXTO).setFont("times", "italic").setFontSize(17);
     doc.text("Certificamos que", CENTRO, 112, { align: "center" });

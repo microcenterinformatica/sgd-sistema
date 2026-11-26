@@ -9,7 +9,7 @@ import { Award, Download, Medal, MinusCircle } from "lucide-react";
 import RequireAuth from "@/components/RequireAuth";
 import { api, ApiError, baixarArquivo } from "@/lib/api";
 import { ConfiguracaoRanking, Professor, RankingItem, RegistroMeritoTurmaResponse } from "@/lib/types";
-import { ItemComPosicao, ULTIMA_COLOCACAO_PREMIADA, ordenarComPosicaoCompartilhada, premiados } from "@/lib/ranking";
+import { ItemComPosicao, ordenarComPosicaoCompartilhada, premiados } from "@/lib/ranking";
 import { CertificadosDialog } from "@/components/CertificadosDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { MoedaVeracom } from "@/components/MoedaVeracom";
@@ -420,9 +420,9 @@ function RankingContent() {
                   <Download />
                   {gerandoTop ? "Gerando..." : "Gerar lista em PDF"}
                 </Button>
-                <Button variant="outline" size="sm" disabled={premiadosDaTurma.length === 0} onClick={() => setCertificadosAbertos(true)}>
+                <Button variant="outline" size="sm" onClick={() => setCertificadosAbertos(true)}>
                   <Medal />
-                  Certificados (1º ao {ULTIMA_COLOCACAO_PREMIADA}º)
+                  Certificados
                 </Button>
               </div>
             )}

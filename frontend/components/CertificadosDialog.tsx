@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { gerarPdfCertificados, tituloDoCertificado } from "@/lib/certificado-pdf";
 import { pluralMoeda } from "@/lib/extrato-veracoins";
 import { ItemComPosicao, ULTIMA_COLOCACAO_PREMIADA } from "@/lib/ranking";
-import { AnoLetivo, Escola } from "@/lib/types";
+import { Aluno, AnoLetivo, Escola } from "@/lib/types";
 import { versoDaTurma } from "@/lib/verso-cartao";
 
 interface Textos {
@@ -24,7 +24,8 @@ interface Textos {
 
 interface Linha {
   alunoId: number;
-  posicao: number;
+  /** null = aluno com 0 pontos no histórico, fora do pódio: certificado sem selo. */
+  posicao: number | null;
   pontuacao: number;
   nome: string;
   feminino: boolean;
@@ -71,6 +72,8 @@ export function CertificadosDialog({
   const [ano, setAno] = useState(new Date().getFullYear());
   const [data, setData] = useState(hoje);
   const [gerando, setGerando] = useState(false);
+  const [incluirZerados, setIncluirZerados] = useState(false);
+  const [carregandoZerados, setCarregandoZerados] = useState(true);
   const [linhas, setLinhas] = useState<Linha[]>(() =>
     premiados.map(({ item, posicao }) => ({
       alunoId: item.aluno_id,
@@ -94,14 +97,29 @@ export function CertificadosDialog({
         if (atual) setAno(atual.ano);
       })
       .catch(() => undefined);
+    const noPodio = new Set(premiados.map((p) => p.item.aluno_id));
+    api
+      .get<Aluno[]>("/alunos")
+      .then((alunos) => {
+        const zerados = alunos
+          .filter((a) => a.turma === turma && a.pontos_atuais === 0 && !noPodio.has(a.id))
+          .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+          .map((a) => ({ alunoId: a.id, posicao: null, pontuacao: 0, nome: a.nome, feminino: false, incluir: true }));
+        setLinhas((ls) => [...ls.filter((l) => l.posicao !== null), ...zerados]);
+      })
+      .catch(() => toast.error("Não foi possível carregar os alunos com 0 pontos."))
+      .finally(() => setCarregandoZerados(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turma]);
 
   const mudarTexto = (campo: keyof Textos, valor: string) => setTextos((t) => t && { ...t, [campo]: valor });
   const mudarLinha = (id: number, mudanca: Partial<Linha>) =>
     setLinhas((ls) => ls.map((l) => (l.alunoId === id ? { ...l, ...mudanca } : l)));
 
-  const escolhidos = linhas.filter((l) => l.incluir);
-  const empate = new Set(linhas.map((l) => l.posicao)).size < linhas.length;
+  const podio = linhas.filter((l) => l.posicao !== null);
+  const zerados = linhas.filter((l) => l.posicao === null);
+  const escolhidos = linhas.filter((l) => l.incluir && (l.posicao !== null || incluirZerados));
+  const empate = new Set(podio.map((l) => l.posicao)).size < podio.length;
 
   async function gerar() {
     if (!textos) return;
@@ -111,7 +129,7 @@ export function CertificadosDialog({
     }
     setGerando(true);
     try {
-      const unicoPrimeiro = linhas.filter((l) => l.posicao === 1).length === 1;
+      const unicoPrimeiro = podio.filter((l) => l.posicao === 1).length === 1;
       await gerarPdfCertificados(escolhidos, unicoPrimeiro, { ...textos, turma, ano, data });
       localStorage.setItem(chave(turma), JSON.stringify(textos));
       onFechar();
@@ -122,13 +140,49 @@ export function CertificadosDialog({
     }
   }
 
+  const linhaDoAluno = (l: Linha) => (
+    <li key={l.alunoId} className="p-3 space-y-2">
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input
+          type="checkbox"
+          checked={l.incluir}
+          onChange={(e) => mudarLinha(l.alunoId, { incluir: e.target.checked })}
+          className="size-4 accent-primary"
+        />
+        {l.posicao !== null ? `${l.posicao}º lugar · ${l.pontuacao.toLocaleString("pt-BR")} ${nomeMoeda}` : "Sem selo · 0 pontos no histórico"}
+      </label>
+      <Input
+        value={l.nome}
+        onChange={(e) => mudarLinha(l.alunoId, { nome: e.target.value })}
+        disabled={!l.incluir}
+        aria-label={`Nome no certificado de ${l.nome || "aluno"}`}
+      />
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {[false, true].map((feminino) => (
+          <label key={String(feminino)} className="flex items-center gap-1.5 text-sm">
+            <input
+              type="radio"
+              name={`titulo-${l.alunoId}`}
+              checked={l.feminino === feminino}
+              onChange={() => mudarLinha(l.alunoId, { feminino })}
+              disabled={!l.incluir}
+              className="accent-primary"
+            />
+            {tituloDoCertificado(feminino)}
+          </label>
+        ))}
+      </div>
+    </li>
+  );
+
   return (
     <Dialog open onOpenChange={(aberto) => !aberto && onFechar()}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Certificados — Turma {turma}</DialogTitle>
           <DialogDescription>
-            Do 1º ao {ULTIMA_COLOCACAO_PREMIADA}º lugar no total de {pluralMoeda(nomeMoeda)} até hoje. Confira os nomes antes de gerar.
+            Do 1º ao {ULTIMA_COLOCACAO_PREMIADA}º lugar no total de {pluralMoeda(nomeMoeda)} até hoje, com selo. Opcionalmente, os demais
+            alunos com 0 pontos no histórico, sem selo. Confira os nomes antes de gerar.
           </DialogDescription>
         </DialogHeader>
 
@@ -136,43 +190,35 @@ export function CertificadosDialog({
           <p className="text-sm text-muted-foreground">Carregando...</p>
         ) : (
           <div className="space-y-4">
-            <ul className="divide-y rounded-lg border">
-              {linhas.map((l) => (
-                <li key={l.alunoId} className="p-3 space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium">
-                    <input
-                      type="checkbox"
-                      checked={l.incluir}
-                      onChange={(e) => mudarLinha(l.alunoId, { incluir: e.target.checked })}
-                      className="size-4 accent-primary"
-                    />
-                    {l.posicao}º lugar · {l.pontuacao.toLocaleString("pt-BR")} {nomeMoeda}
-                  </label>
-                  <Input
-                    value={l.nome}
-                    onChange={(e) => mudarLinha(l.alunoId, { nome: e.target.value })}
-                    disabled={!l.incluir}
-                    aria-label={`Nome no certificado do ${l.posicao}º lugar`}
-                  />
-                  <div className="flex flex-wrap gap-x-4 gap-y-1">
-                    {[false, true].map((feminino) => (
-                      <label key={String(feminino)} className="flex items-center gap-1.5 text-sm">
-                        <input
-                          type="radio"
-                          name={`titulo-${l.alunoId}`}
-                          checked={l.feminino === feminino}
-                          onChange={() => mudarLinha(l.alunoId, { feminino })}
-                          disabled={!l.incluir}
-                          className="accent-primary"
-                        />
-                        {tituloDoCertificado(feminino)}
-                      </label>
-                    ))}
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {podio.length > 0 ? (
+              <ul className="divide-y rounded-lg border">{podio.map((l) => linhaDoAluno(l))}</ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">Nenhum aluno da turma tem pontuação positiva para o pódio.</p>
+            )}
             {empate && <p className="text-xs text-muted-foreground">Há empate: todos os alunos da mesma colocação recebem certificado.</p>}
+
+            <div className="space-y-2 rounded-lg border p-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={incluirZerados}
+                  onChange={(e) => setIncluirZerados(e.target.checked)}
+                  disabled={carregandoZerados || zerados.length === 0}
+                  className="size-4 accent-primary"
+                />
+                Incluir os demais alunos com 0 pontos no histórico (sem selo de colocação)
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {carregandoZerados
+                  ? "Carregando alunos..."
+                  : zerados.length === 0
+                    ? "Nenhum outro aluno da turma está com 0 pontos."
+                    : `${zerados.length} aluno(s) fora do pódio com 0 pontos.`}
+              </p>
+              {incluirZerados && zerados.length > 0 && (
+                <ul className="divide-y rounded-lg border">{zerados.map((l) => linhaDoAluno(l))}</ul>
+              )}
+            </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1 sm:col-span-2">
