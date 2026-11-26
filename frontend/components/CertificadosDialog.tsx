@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Pencil, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
-import { gerarPdfCertificados, tituloDoCertificado } from "@/lib/certificado-pdf";
+import { LIMITE_TEXTO_CERTIFICADO, gerarPdfCertificados, textoDoCertificado, tituloDoCertificado } from "@/lib/certificado-pdf";
 import { pluralMoeda } from "@/lib/extrato-veracoins";
 import { ItemComPosicao, ULTIMA_COLOCACAO_PREMIADA } from "@/lib/ranking";
 import { AnoLetivo, Escola } from "@/lib/types";
@@ -32,6 +33,9 @@ interface Linha {
   nome: string;
   feminino: boolean;
   incluir: boolean;
+  /** null = texto padrão do certificado. */
+  texto: string | null;
+  editandoTexto: boolean;
 }
 
 const chave = (turma: string) => `sgd_certificado_${turma}`;
@@ -86,6 +90,8 @@ export function CertificadosDialog({
         nome: item.aluno_nome,
         feminino: false,
         incluir: selo,
+        texto: null,
+        editandoTexto: false,
       };
     })
   );
@@ -109,6 +115,8 @@ export function CertificadosDialog({
     setLinhas((ls) => ls.map((l) => (l.alunoId === id ? { ...l, ...mudanca } : l)));
 
   const comSelo = linhas.filter((l) => l.selo);
+  const unicoPrimeiro = comSelo.length === 1;
+  const textoPadrao = (l: Linha) => textoDoCertificado(l.feminino, l.selo && l.posicao === 1 && unicoPrimeiro, ano);
   const demais = linhas.filter((l) => !l.selo);
   const escolhidos = linhas.filter((l) => l.incluir);
   const demaisMarcados = demais.filter((l) => l.incluir).length;
@@ -122,8 +130,7 @@ export function CertificadosDialog({
     }
     setGerando(true);
     try {
-      const unicoPrimeiro = comSelo.length === 1;
-      const paraPdf = escolhidos.map((l) => ({ nome: l.nome, feminino: l.feminino, posicao: l.selo ? l.posicao : null }));
+      const paraPdf = escolhidos.map((l) => ({ nome: l.nome, feminino: l.feminino, posicao: l.selo ? l.posicao : null, texto: l.texto }));
       await gerarPdfCertificados(paraPdf, unicoPrimeiro, { ...textos, turma, ano, data });
       localStorage.setItem(chave(turma), JSON.stringify(textos));
       onFechar();
@@ -166,6 +173,42 @@ export function CertificadosDialog({
           </label>
         ))}
       </div>
+      {l.incluir && !l.editandoTexto && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => mudarLinha(l.alunoId, { editandoTexto: true, texto: l.texto ?? textoPadrao(l) })}
+          >
+            <Pencil />
+            Editar texto
+          </Button>
+          {l.texto !== null && <span className="text-xs text-muted-foreground">Texto alterado para este aluno</span>}
+        </div>
+      )}
+      {l.incluir && l.editandoTexto && (
+        <div className="space-y-2">
+          <Textarea
+            value={l.texto ?? ""}
+            onChange={(e) => mudarLinha(l.alunoId, { texto: e.target.value })}
+            maxLength={LIMITE_TEXTO_CERTIFICADO}
+            rows={4}
+            aria-label={`Texto do certificado de ${l.nome || "aluno"}`}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={() => mudarLinha(l.alunoId, { editandoTexto: false, texto: l.texto?.trim() ? l.texto : null })}>
+              Concluir
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => mudarLinha(l.alunoId, { editandoTexto: false, texto: null })}>
+              <RotateCcw />
+              Voltar ao texto padrão
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {(l.texto ?? "").length}/{LIMITE_TEXTO_CERTIFICADO} · texto longo sai com letra menor
+            </span>
+          </div>
+        </div>
+      )}
     </li>
   );
 

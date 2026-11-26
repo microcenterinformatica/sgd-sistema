@@ -18,7 +18,12 @@ export interface PremiadoCertificado {
   nome: string;
   /** Escolhido por quem gera; nunca deduzido do nome. */
   feminino: boolean;
+  /** Texto escrito pela professora para este aluno; vazio = texto padrão. */
+  texto?: string | null;
 }
+
+/** Limite do texto editado, para caber no espaço do parágrafo. */
+export const LIMITE_TEXTO_CERTIFICADO = 450;
 
 type Cor = [number, number, number];
 const NAVY: Cor = [19, 41, 75];
@@ -67,7 +72,7 @@ export function tituloDoCertificado(feminino: boolean): string {
 }
 
 /** Só o 1º lugar sem empate é "o que mais se destacou"; os demais são "um dos que mais se destacaram". */
-function textoDoCertificado(feminino: boolean, unicoPrimeiro: boolean, ano: number): string {
+export function textoDoCertificado(feminino: boolean, unicoPrimeiro: boolean, ano: number): string {
   const quem = unicoPrimeiro
     ? `${feminino ? "a aluna" : "o aluno"} que mais se destacou`
     : `${feminino ? "uma das alunas" : "um dos alunos"} que mais se destacaram`;
@@ -211,8 +216,15 @@ export async function gerarPdfCertificados(premiados: PremiadoCertificado[], uni
     doc.line(CENTRO - 85, 129, CENTRO + 85, 129);
 
     doc.setTextColor(...TEXTO).setFont("times", "normal").setFontSize(16);
-    const texto = textoDoCertificado(p.feminino, p.posicao === 1 && unicoPrimeiro, dados.ano);
-    doc.text(doc.splitTextToSize(texto, 222), CENTRO, 138, { align: "center", lineHeightFactor: 1.35 });
+    const texto = limpar(p.texto ?? "") || textoDoCertificado(p.feminino, p.posicao === 1 && unicoPrimeiro, dados.ano);
+    // O parágrafo tem espaço para 3 linhas em corpo 16 antes da data; texto maior diminui a letra.
+    let corpo = 16;
+    let linhas = doc.splitTextToSize(texto, 222);
+    while (corpo > 10 && linhas.length * corpo > 3 * 16) {
+      doc.setFontSize(--corpo);
+      linhas = doc.splitTextToSize(texto, 222);
+    }
+    doc.text(linhas, CENTRO, 138, { align: "center", lineHeightFactor: 1.35 });
 
     doc.setFontSize(13);
     doc.text(limpar(dados.cidade ? `${dados.cidade}, ${dataPorExtenso(dados.data)}.` : `${dataPorExtenso(dados.data)}.`), CENTRO, 163, {
